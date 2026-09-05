@@ -208,10 +208,6 @@ export class Autopilot {
       this.pause('manual input detected');
       return;
     }
-    if (!this.adapter.canSubmit()) {
-      this.fail('composer unavailable');
-      return;
-    }
 
     const continuationPrompt = buildContinuationPrompt(
       this.settings,
