@@ -311,6 +311,11 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     render();
   };
 
+  const stopByUser = (): void => {
+    autopilot.disable();
+    recovery.onAutomationDisabled(now());
+  };
+
   const control = new AutopilotControl({
     document: doc,
     hotkey: settings.hotkey,
@@ -318,7 +323,7 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
       onToggle: () => {
         if (safeMode) return;
         if (autopilot.getSnapshot().enabled) {
-          autopilot.disable();
+          stopByUser();
         } else {
           autopilot.enable();
           inspectRecovery();
@@ -331,12 +336,12 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
         render();
       },
       onStop: () => {
-        autopilot.disable();
+        stopByUser();
         render();
       },
       onSafeMode: () => {
         safeMode = !safeMode;
-        autopilot.disable();
+        stopByUser();
         render();
       },
       onResetRecovery: () => {
@@ -374,7 +379,7 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   options.registerMenuCommand('Autopilot: toggle', () => {
     if (safeMode) return;
     if (autopilot.getSnapshot().enabled) {
-      autopilot.disable();
+      stopByUser();
     } else {
       autopilot.enable();
       inspectRecovery();
@@ -383,12 +388,12 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     render();
   });
   options.registerMenuCommand('Autopilot: emergency stop', () => {
-    autopilot.disable();
+    stopByUser();
     render();
   });
   options.registerMenuCommand('Autopilot: toggle Safe Mode', () => {
     safeMode = !safeMode;
-    autopilot.disable();
+    stopByUser();
     render();
   });
   options.registerMenuCommand('Autopilot: settings', () =>
