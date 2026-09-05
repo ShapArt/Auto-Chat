@@ -1,0 +1,159 @@
+name: Apply runtime hardening fixes
+
+on:
+  push:
+    branches:
+      - feat/autopilot-mvp
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/autopilot-mvp
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+      - name: Use npm 11.6.0
+        run: npm install --global npm@11.6.0
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply hardening patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/main.ts')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  "    if (inserted && adapter.canSubmit()) return adapter.submitPrompt();\n",
+                  "    if (inserted && !adapter.composerMatchesText(prompt)) return false;\n"
+                  "    if (inserted && adapter.canSubmit()) return adapter.submitPrompt();\n",
+              ),
+              (
+                  "  let safeMode = false;\n  let previousAutopilotState: AutopilotState = 'DISABLED';\n",
+                  "  let safeMode = false;\n"
+                  "  let resumeAfterNetwork = false;\n"
+                  "  let networkResumeTimer: ReturnType<typeof setTimeout> | null = null;\n"
+                  "  let previousAutopilotState: AutopilotState = 'DISABLED';\n",
+              ),
+              (
+                  "      pause: (reason) => autopilot.pause(reason),\n",
+                  "      pause: (reason) => {\n"
+                  "        if (autopilot.getSnapshot().state !== 'PAUSED') autopilot.pause(reason);\n"
+                  "      },\n",
+              ),
+              (
+                  "  const clearReloadResumeMarker = (): void => {\n",
+                  "  const cancelNetworkResume = (): void => {\n"
+                  "    if (networkResumeTimer !== null) clearTimeout(networkResumeTimer);\n"
+                  "    networkResumeTimer = null;\n"
+                  "  };\n\n"
+                  "  const clearReloadResumeMarker = (): void => {\n",
+              ),
+              (
+                  "  const stopByUser = (): void => {\n"
+                  "    autopilot.disable();\n",
+                  "  const stopByUser = (): void => {\n"
+                  "    resumeAfterNetwork = false;\n"
+                  "    cancelNetworkResume();\n"
+                  "    autopilot.disable();\n",
+              ),
+              (
+                  "  const view = doc.defaultView;\n"
+                  "  const handleOffline = (): void => {\n"
+                  "    recovery.setOnline(false, now());\n"
+                  "    render();\n"
+                  "  };\n"
+                  "  const handleOnline = (): void => {\n"
+                  "    recovery.setOnline(true, now());\n"
+                  "    render();\n"
+                  "  };\n"
+                  "  view?.addEventListener('offline', handleOffline);\n"
+                  "  view?.addEventListener('online', handleOnline);\n"
+                  "  if (view && !view.navigator.onLine) recovery.setOnline(false, now());\n",
+                  "  const view = doc.defaultView;\n"
+                  "  const handleOffline = (): void => {\n"
+                  "    cancelNetworkResume();\n"
+                  "    const snapshot = autopilot.getSnapshot();\n"
+                  "    resumeAfterNetwork =\n"
+                  "      resumeAfterNetwork ||\n"
+                  "      (snapshot.enabled &&\n"
+                  "        snapshot.state !== 'DISABLED' &&\n"
+                  "        snapshot.state !== 'PAUSED' &&\n"
+                  "        snapshot.state !== 'ERROR');\n"
+                  "    recovery.setOnline(false, now());\n"
+                  "    render();\n"
+                  "  };\n"
+                  "  const handleOnline = (): void => {\n"
+                  "    recovery.setOnline(true, now());\n"
+                  "    cancelNetworkResume();\n\n"
+                  "    if (resumeAfterNetwork) {\n"
+                  "      networkResumeTimer = setTimeout(() => {\n"
+                  "        networkResumeTimer = null;\n"
+                  "        const snapshot = autopilot.getSnapshot();\n"
+                  "        if (\n"
+                  "          !resumeAfterNetwork ||\n"
+                  "          safeMode ||\n"
+                  "          !snapshot.enabled ||\n"
+                  "          snapshot.state !== 'PAUSED' ||\n"
+                  "          snapshot.pauseReason !== 'network offline'\n"
+                  "        ) {\n"
+                  "          resumeAfterNetwork = false;\n"
+                  "          return;\n"
+                  "        }\n\n"
+                  "        const timestamp = now();\n"
+                  "        recovery.tick(timestamp);\n"
+                  "        if (recovery.getSnapshot().state === 'RECOVERY_WAIT') {\n"
+                  "          render();\n"
+                  "          return;\n"
+                  "        }\n"
+                  "        if (!adapter.isGenerating() && recovery.getSnapshot().generationActive) {\n"
+                  "          recovery.onGenerationFinished(timestamp);\n"
+                  "        }\n\n"
+                  "        autopilot.disable();\n"
+                  "        autopilot.enable();\n"
+                  "        resumeAfterNetwork = false;\n"
+                  "        inspectRecovery();\n"
+                  "        advanceRecovery();\n"
+                  "        render();\n"
+                  "      }, DEFAULT_RECOVERY_SETTINGS.onlineSettleMs);\n"
+                  "    }\n"
+                  "    render();\n"
+                  "  };\n"
+                  "  view?.addEventListener('offline', handleOffline);\n"
+                  "  view?.addEventListener('online', handleOnline);\n"
+                  "  if (view && !view.navigator.onLine) handleOffline();\n",
+              ),
+              (
+                  "    dispose: () => {\n"
+                  "      clearInterval(recoveryTimer);\n",
+                  "    dispose: () => {\n"
+                  "      cancelNetworkResume();\n"
+                  "      clearInterval(recoveryTimer);\n",
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'expected patch anchor missing: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+          npx prettier --write src/main.ts
+      - name: Commit patch and remove helper workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-runtime-hardening.yml
+          git add src/main.ts
+          git commit -m "fix: harden network resume and rollover submission"
+          git push origin HEAD:feat/autopilot-mvp
