@@ -39,6 +39,20 @@ describe('ChatGptDomAdapter', () => {
     expect(adapter.findSubmitButton()?.id).toBe('composer-submit-button');
   });
 
+  it('falls back to the current send-button test id when the legacy submit id is absent', () => {
+    const button = document.querySelector('#composer-submit-button') as HTMLButtonElement;
+    button.removeAttribute('id');
+    button.setAttribute('data-testid', 'send-button');
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    const adapter = new ChatGptDomAdapter(document);
+    expect(adapter.findSubmitButton()).toBe(button);
+    expect(adapter.canSubmit()).toBe(true);
+    expect(adapter.submitPrompt()).toBe(true);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it('detects generation from the stop-button test id rather than aria text', () => {
     loadFixture('chatgpt-streaming.html');
     const adapter = new ChatGptDomAdapter(document);
