@@ -53,7 +53,8 @@ export function validateReloadResumeMarker(
 
   const reloadTimestamps: number[] = [];
   for (const timestamp of marker.reloadTimestamps) {
-    if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp > now) return null;
+    if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp > now)
+      return null;
     reloadTimestamps.push(timestamp);
   }
 

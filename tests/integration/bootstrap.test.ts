@@ -2,10 +2,7 @@ import errorHtml from '../fixtures/chatgpt-error.html?raw';
 import idleHtml from '../fixtures/chatgpt-idle.html?raw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapAutopilot } from '../../src/main';
-import {
-  createReloadResumeMarker,
-  RELOAD_RESUME_KEY,
-} from '../../src/recovery/reload-resume';
+import { createReloadResumeMarker, RELOAD_RESUME_KEY } from '../../src/recovery/reload-resume';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '../../src/settings/settings';
 
 class MemoryStorage {
