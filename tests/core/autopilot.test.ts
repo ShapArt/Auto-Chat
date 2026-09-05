@@ -7,6 +7,8 @@ class FakeAdapter {
   composerEmpty = true;
   canSubmitValue = true;
   submitAvailableOnlyAfterInsert = false;
+  submitUnavailableChecksAfterInsert = 0;
+  submitReadinessChecks = 0;
   insertSucceeds = true;
   submitSucceeds = true;
   inserted: string[] = [];
@@ -22,11 +24,16 @@ class FakeAdapter {
   }
 
   canSubmit(): boolean {
-    return (
-      this.canSubmitValue &&
-      (!this.submitAvailableOnlyAfterInsert || !this.composerEmpty) &&
-      !this.generating
-    );
+    if (!this.canSubmitValue || this.generating) return false;
+    if (this.submitAvailableOnlyAfterInsert && this.composerEmpty) return false;
+    if (
+      !this.composerEmpty &&
+      this.submitReadinessChecks < this.submitUnavailableChecksAfterInsert
+    ) {
+      this.submitReadinessChecks += 1;
+      return false;
+    }
+    return true;
   }
 
   insertComposerText(text: string): boolean {
@@ -194,6 +201,28 @@ describe('Autopilot', () => {
     vi.advanceTimersByTime(100);
 
     expect(adapter.inserted).toHaveLength(1);
+    expect(adapter.submitCount).toBe(1);
+    expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
+  });
+
+  it('waits briefly for a delayed send control after inserting the continuation', () => {
+    const { adapter, autopilot } = harness({ postSubmitGuardMs: 5_000 });
+    adapter.submitAvailableOnlyAfterInsert = true;
+    adapter.submitUnavailableChecksAfterInsert = 2;
+    autopilot.enable();
+    adapter.generating = true;
+    adapter.emitActivity();
+    adapter.generating = false;
+    adapter.emitActivity();
+
+    vi.advanceTimersByTime(100);
+
+    expect(adapter.inserted).toHaveLength(1);
+    expect(adapter.submitCount).toBe(0);
+    expect(autopilot.getSnapshot().state).toBe('SUBMITTING');
+
+    vi.advanceTimersByTime(2_000);
+
     expect(adapter.submitCount).toBe(1);
     expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
   });
