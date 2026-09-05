@@ -32,6 +32,7 @@ The core is deliberately conservative:
 - Conservative same-project rollover foundation using visible `/g/g-p-…/project` navigation only.
 - `[AUTOPILOT_RESUME]` prompt containing technical session identifiers only.
 - Bounded recovery supervisor for stalls and recoverable UI failures.
+- One-shot same-path reload-resume marker that preserves only technical session identity and bounded reload history.
 - Safe Mode, emergency stop, pause, recovery reset, settings dialog, and `Alt+Shift+A` toggle hotkey.
 - Offline/online settling and recovery circuit breakers.
 - Standalone `.user.js` bundle with no runtime dependencies.
@@ -148,11 +149,15 @@ The recovery ladder is bounded:
 5. same-project rollover only when it can be validated;
 6. otherwise pause for a human.
 
+Before an automated reload, Auto-Chat writes a one-shot recovery marker through Tampermonkey storage. The marker contains only the current `chatgpt.com` path, request timestamp, Auto-Chat session ID, rollover index, and recent reload timestamps. On the next bootstrap it is consumed immediately whether valid or invalid. It is accepted only on the exact same path and only for 60 seconds; a valid marker restores the technical session and reload circuit-breaker history, then re-arms automation without submitting a continuation merely because the page loaded.
+
 Safety checks and service restrictions are outside this ladder and are never automatically "pushed through".
 
 ## Privacy model
 
 Auto-Chat's intended persistence contains settings and technical state only. Conversation text is not intentionally logged or persisted by the userscript.
+
+The reload-resume marker is deliberately content-free: it does not contain prompts, assistant output, cookies, tokens, account identifiers, or copied ChatGPT storage. It is one-shot and is cleared on bootstrap, Stop, or Safe Mode.
 
 Debug logging is off by default and is designed for technical state transitions, not prompts or outputs.
 
@@ -183,7 +188,7 @@ Useful source areas:
 ```text
 src/core/         normal autopilot state machine and orchestration
 src/chatgpt/      visible DOM adapter
-src/recovery/     classifier and bounded recovery supervisor
+src/recovery/     classifier, bounded recovery supervisor, and reload-resume state
 src/navigation/   project context / rollover helpers
 src/settings/     local settings validation and persistence
 src/ui/           floating control
@@ -207,7 +212,9 @@ Before calling v0.1.0 stable, test on a harmless dedicated ChatGPT conversation/
 - offline/online transitions settle safely;
 - ordinary conversation navigation pauses;
 - same-project rollover, if available in the live DOM, remains in the same project;
-- reload/recovery circuit breakers do not loop;
+- a bounded recovery reload re-arms the same technical session without an immediate continuation submission;
+- stale or wrong-path reload markers fail closed and are consumed;
+- reload/recovery circuit breakers remain bounded across page reloads and do not loop;
 - contenteditable insertion is accepted by the live ProseMirror composer;
 - no unexpected browser-console errors occur.
 
