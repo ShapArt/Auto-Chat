@@ -9,12 +9,19 @@ import {
 } from './navigation/project-navigator';
 import { classifyUiError } from './recovery/error-classifier';
 import {
+  createReloadResumeMarker,
+  RELOAD_RESUME_KEY,
+  validateReloadResumeMarker,
+} from './recovery/reload-resume';
+import {
   DEFAULT_RECOVERY_SETTINGS,
   RecoverySupervisor,
   type RecoverySnapshot,
 } from './recovery/recovery-supervisor';
 import { SettingsStore, type AutopilotSettings, type SettingsStorage } from './settings/settings';
 import { AutopilotControl } from './ui/control';
+
+const RELOAD_RESUME_MAX_AGE_MS = 60_000;
 
 export interface BootstrapOptions {
   document: Document;
@@ -187,7 +194,26 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   const now = options.now ?? (() => Date.now());
   const settingsStore = new SettingsStore(options.storage);
   const settings = await settingsStore.load();
-  const sessionIdentity = createSessionIdentity();
+
+  let reloadResume = null;
+  try {
+    const storedReloadResume = await Promise.resolve(
+      options.storage.getValue<unknown>(RELOAD_RESUME_KEY, null),
+    );
+    reloadResume = validateReloadResumeMarker(
+      storedReloadResume,
+      getPath(),
+      now(),
+      RELOAD_RESUME_MAX_AGE_MS,
+    );
+    await Promise.resolve(options.storage.setValue(RELOAD_RESUME_KEY, null));
+  } catch {
+    reloadResume = null;
+  }
+
+  const sessionIdentity: SessionIdentity = reloadResume
+    ? { sessionId: reloadResume.sessionId, rolloverIndex: reloadResume.rolloverIndex }
+    : createSessionIdentity();
   const adapter = new ChatGptDomAdapter(doc);
   const navigator = new ProjectNavigator(sessionIdentity, { document: doc, getPath });
 
@@ -232,7 +258,28 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
         ]);
       },
       reload: () => {
-        if (!safeMode) reload();
+        if (safeMode) return;
+        const requestedAt = now();
+        const marker = createReloadResumeMarker({
+          path: getPath(),
+          requestedAt,
+          sessionIdentity,
+          reloadTimestamps: recovery.getReloadHistory(requestedAt),
+        });
+
+        void Promise.resolve()
+          .then(() => options.storage.setValue(RELOAD_RESUME_KEY, marker))
+          .then(() => {
+            if (safeMode || !recoveryIsArmed()) {
+              return Promise.resolve(options.storage.setValue(RELOAD_RESUME_KEY, null));
+            }
+            reload();
+            return undefined;
+          })
+          .catch(() => {
+            autopilot.pause('reload state persistence failed');
+            render();
+          });
       },
       rollover: () => {
         if (safeMode) return false;
@@ -267,6 +314,8 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
       pause: (reason) => autopilot.pause(reason),
     },
   );
+
+  if (reloadResume) recovery.restoreReloadHistory(reloadResume.reloadTimestamps, now());
 
   const render = (): void => {
     const auto = autopilot.getSnapshot();
@@ -311,9 +360,16 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     render();
   };
 
+  const clearReloadResumeMarker = (): void => {
+    void Promise.resolve()
+      .then(() => options.storage.setValue(RELOAD_RESUME_KEY, null))
+      .catch(() => undefined);
+  };
+
   const stopByUser = (): void => {
     autopilot.disable();
     recovery.onAutomationDisabled(now());
+    clearReloadResumeMarker();
   };
 
   const control = new AutopilotControl({
@@ -354,7 +410,13 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
 
   control.mount();
   autopilot.start();
-  inspectRecovery();
+  if (reloadResume) {
+    autopilot.enable();
+    inspectRecovery();
+    advanceRecovery();
+  } else {
+    inspectRecovery();
+  }
   render();
 
   const disconnectRecoveryObserver = adapter.observeRelevantActivity(() => {
