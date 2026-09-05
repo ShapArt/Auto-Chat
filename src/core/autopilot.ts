@@ -14,6 +14,7 @@ const SUBMIT_READY_TIMEOUT_MS = 2_000;
 export interface AutopilotDomAdapter {
   isGenerating(): boolean;
   isComposerEmpty(): boolean;
+  composerMatchesText(text: string): boolean;
   canSubmit(): boolean;
   insertComposerText(text: string): boolean;
   submitPrompt(): boolean;
@@ -228,15 +229,24 @@ export class Autopilot {
       return;
     }
 
-    this.attemptSubmitWhenReady(epoch, Date.now() + SUBMIT_READY_TIMEOUT_MS);
+    this.attemptSubmitWhenReady(
+      epoch,
+      continuationPrompt,
+      Date.now() + SUBMIT_READY_TIMEOUT_MS,
+    );
   }
 
-  private attemptSubmitWhenReady(epoch: number, deadline: number): void {
+  private attemptSubmitWhenReady(epoch: number, expectedText: string, deadline: number): void {
     if (!this.enabled || this.state !== 'SUBMITTING') return;
     if (epoch !== this.generationEpoch || this.submittedEpoch !== epoch) return;
 
     if (this.getConversationKey() !== this.conversationKey) {
       this.pause('conversation changed');
+      return;
+    }
+
+    if (!this.adapter.composerMatchesText(expectedText)) {
+      this.pause('manual input detected');
       return;
     }
 
@@ -256,7 +266,7 @@ export class Autopilot {
     this.cancelSubmitReadyTimer();
     this.submitReadyTimer = setTimeout(() => {
       this.submitReadyTimer = null;
-      this.attemptSubmitWhenReady(epoch, deadline);
+      this.attemptSubmitWhenReady(epoch, expectedText, deadline);
     }, SUBMIT_READY_POLL_MS);
   }
 
