@@ -1,3 +1,4 @@
+// @ts-expect-error Node builtin is used only by this build-metadata test; browser tsconfig intentionally omits Node types.
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
