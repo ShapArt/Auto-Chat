@@ -141,6 +141,7 @@ export class AutopilotControl {
     root.id = ROOT_ID;
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', 'ChatGPT Autopilot controls');
+    root.setAttribute('data-chatgpt-autopilot-owned', 'true');
 
     const style = this.doc.createElement('style');
     style.textContent = `
