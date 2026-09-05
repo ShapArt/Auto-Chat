@@ -23,6 +23,8 @@ The project follows semantic versioning once releases are published.
 - Continuations are inserted before submit readiness is required, with a bounded two-second wait for ChatGPT to mount or enable the Send control.
 - A pending continuation must still match the text inserted by Auto-Chat before automated submission; manual edits pause automation instead of being sent.
 - Submit-button detection supports both the legacy `#composer-submit-button` id and the current `[data-testid="send-button"]` structural selector.
+- Same-project rollover now revalidates the pending `[AUTOPILOT_RESUME]` text before clicking Send, so manual edits fail closed instead of being auto-submitted.
+- Network recovery now preserves whether Auto was active before an offline pause and re-arms only after the configured online settle window; Stop, Safe Mode, and manual pause cancel that automatic resume.
 
 ### Validation
 
