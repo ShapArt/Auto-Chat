@@ -43,7 +43,7 @@ export class Autopilot {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disconnectObserver: (() => void) | null = null;
   private readonly getConversationKey: () => string;
-  private readonly onStateChange?: (snapshot: AutopilotSnapshot) => void;
+  private readonly onStateChange: ((snapshot: AutopilotSnapshot) => void) | undefined;
   private readonly logger: Logger;
 
   constructor(
