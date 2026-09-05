@@ -18,6 +18,7 @@ const requiredLines = [
   '// @license      MIT',
   '// @match        https://chatgpt.com/*',
   '// @run-at       document-idle',
+  '// @sandbox      DOM',
 ];
 
 for (const line of requiredLines) {
