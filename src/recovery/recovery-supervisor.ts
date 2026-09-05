@@ -267,6 +267,17 @@ export class RecoverySupervisor {
     this.setState('RESTORING_AFTER_RELOAD', now);
   }
 
+  onAutomationDisabled(now: number): void {
+    this.generationActive = false;
+    this.currentError = null;
+    this.generationStartedAt = null;
+    this.lastRelevantDomActivityAt = null;
+    this.regeneratesThisTurn = 0;
+    this.recoveryFailures = 0;
+    this.onlineResumeAt = null;
+    if (this.state !== 'FATAL') this.setState('NORMAL', now);
+  }
+
   resetRecovery(now = Date.now()): void {
     this.regeneratesThisTurn = 0;
     this.recoveryFailures = 0;
