@@ -25,6 +25,7 @@ The project follows semantic versioning once releases are published.
 - Submit-button detection supports both the legacy `#composer-submit-button` id and the current `[data-testid="send-button"]` structural selector.
 - Same-project rollover now revalidates the pending `[AUTOPILOT_RESUME]` text before clicking Send, so manual edits fail closed instead of being auto-submitted.
 - Network recovery now preserves whether Auto was active before an offline pause and re-arms only after the configured online settle window; Stop, Safe Mode, and manual pause cancel that automatic resume.
+- Same-project rollover proof now ignores project links hidden by `hidden`, `aria-hidden`, `display:none`, or `visibility:hidden`, preventing stale hidden navigation DOM from being clicked.
 
 ### Validation
 
