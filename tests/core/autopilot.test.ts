@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, type AutopilotSettings } from '../../src/settings/set
 class FakeAdapter {
   generating = false;
   composerEmpty = true;
+  composerMatchesExpected = true;
   canSubmitValue = true;
   submitAvailableOnlyAfterInsert = false;
   submitUnavailableChecksAfterInsert = 0;
@@ -21,6 +22,10 @@ class FakeAdapter {
 
   isComposerEmpty(): boolean {
     return this.composerEmpty;
+  }
+
+  composerMatchesText(text: string): boolean {
+    return this.composerMatchesExpected && this.inserted.at(-1) === text;
   }
 
   canSubmit(): boolean {
@@ -225,6 +230,27 @@ describe('Autopilot', () => {
 
     expect(adapter.submitCount).toBe(1);
     expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
+  });
+
+  it('pauses if the pending continuation is manually edited before send becomes available', () => {
+    const { adapter, autopilot } = harness({ postSubmitGuardMs: 5_000 });
+    adapter.submitAvailableOnlyAfterInsert = true;
+    adapter.submitUnavailableChecksAfterInsert = 2;
+    autopilot.enable();
+    adapter.generating = true;
+    adapter.emitActivity();
+    adapter.generating = false;
+    adapter.emitActivity();
+
+    vi.advanceTimersByTime(100);
+    expect(autopilot.getSnapshot().state).toBe('SUBMITTING');
+
+    adapter.composerMatchesExpected = false;
+    vi.advanceTimersByTime(2_000);
+
+    expect(autopilot.getSnapshot().state).toBe('PAUSED');
+    expect(autopilot.getSnapshot().pauseReason).toBe('manual input detected');
+    expect(adapter.submitCount).toBe(0);
   });
 
   it('fails closed if the composer never becomes submittable within the bounded wait', () => {
