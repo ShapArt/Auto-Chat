@@ -6,6 +6,20 @@ The project follows semantic versioning once releases are published.
 
 ## [Unreleased]
 
+### Added
+
+- One-shot same-path reload-resume marker carrying only technical session identity, rollover index, request time, and bounded reload history.
+- Reload circuit-breaker history restoration across an automated page reload.
+- Structural recovery UI signal classification for visible system alerts/dialogs without parsing assistant message text.
+- `aria-busy="true"` assistant-turn streaming fallback for current ChatGPT DOM variants.
+
+### Changed
+
+- Recovery now runs only while Auto is explicitly enabled and not paused.
+- Repeated identical visible recovery errors are idempotent instead of incrementing failure counters on every DOM mutation.
+- Explicit user Stop clears stale generation/recovery state while preserving the reload circuit-breaker history.
+- Autopilot-owned controls/settings DOM is excluded from relevant-activity tracking.
+
 ### Validation
 
 - Live Firefox/Tampermonkey validation against the current ChatGPT UI is still pending.
