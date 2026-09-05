@@ -1,0 +1,47 @@
+name: Spike Firefox + Tampermonkey
+
+on:
+  push:
+    branches:
+      - spike/firefox-tampermonkey-ci
+    paths:
+      - '.github/workflows/spike-firefox-tampermonkey.yml'
+      - 'tools/spike_firefox_tampermonkey.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show Firefox availability
+        run: |
+          command -v firefox || true
+          firefox --version || true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Selenium
+        run: python -m pip install --disable-pip-version-check 'selenium==4.48.0'
+
+      - name: Download pinned Tampermonkey 5.5.0 XPI
+        run: |
+          curl --fail --location --retry 3 \
+            'https://addons.mozilla.org/firefox/downloads/file/4797143/tampermonkey-5.5.0.xpi' \
+            --output tampermonkey.xpi
+          test -s tampermonkey.xpi
+          sha256sum tampermonkey.xpi
+
+      - name: Run headless Firefox + Tampermonkey spike
+        env:
+          TAMPERMONKEY_XPI: tampermonkey.xpi
+          USERSCRIPT_URL: https://raw.githubusercontent.com/ShapArt/Auto-Chat/rc/v0.1.0-rc2/chatgpt-autopilot.user.js
+          TARGET_URL: https://chatgpt.com/
+        run: python tools/spike_firefox_tampermonkey.py
