@@ -15,7 +15,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v6
 
@@ -41,7 +41,8 @@ jobs:
 
       - name: Run headless Firefox + Tampermonkey spike
         env:
+          PYTHONUNBUFFERED: '1'
           TAMPERMONKEY_XPI: tampermonkey.xpi
           USERSCRIPT_URL: https://raw.githubusercontent.com/ShapArt/Auto-Chat/rc/v0.1.0-rc2/chatgpt-autopilot.user.js
           TARGET_URL: https://chatgpt.com/
-        run: python tools/spike_firefox_tampermonkey.py
+        run: timeout --signal=TERM 90s python -u tools/spike_firefox_tampermonkey.py
