@@ -8,6 +8,9 @@ import {
 import type { AutopilotSettings } from '../settings/settings';
 import { Logger } from '../utils/logger';
 
+const SUBMIT_READY_POLL_MS = 50;
+const SUBMIT_READY_TIMEOUT_MS = 2_000;
+
 export interface AutopilotDomAdapter {
   isGenerating(): boolean;
   isComposerEmpty(): boolean;
@@ -47,6 +50,7 @@ export class Autopilot {
   private conversationKey = '';
   private started = false;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
+  private submitReadyTimer: ReturnType<typeof setTimeout> | null = null;
   private postSubmitTimer: ReturnType<typeof setTimeout> | null = null;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disconnectObserver: (() => void) | null = null;
@@ -224,14 +228,36 @@ export class Autopilot {
       return;
     }
 
-    if (!this.adapter.canSubmit() || !this.adapter.submitPrompt()) {
+    this.attemptSubmitWhenReady(epoch, Date.now() + SUBMIT_READY_TIMEOUT_MS);
+  }
+
+  private attemptSubmitWhenReady(epoch: number, deadline: number): void {
+    if (!this.enabled || this.state !== 'SUBMITTING') return;
+    if (epoch !== this.generationEpoch || this.submittedEpoch !== epoch) return;
+
+    if (this.getConversationKey() !== this.conversationKey) {
+      this.pause('conversation changed');
+      return;
+    }
+
+    if (this.adapter.canSubmit() && this.adapter.submitPrompt()) {
+      this.cancelSubmitReadyTimer();
+      this.successfulTurns += 1;
+      this.setState(transition(this.state, { type: 'SUBMIT_SUCCEEDED' }));
+      this.schedulePostSubmitGuard();
+      return;
+    }
+
+    if (Date.now() >= deadline) {
       this.fail('submission failed');
       return;
     }
 
-    this.successfulTurns += 1;
-    this.setState(transition(this.state, { type: 'SUBMIT_SUCCEEDED' }));
-    this.schedulePostSubmitGuard();
+    this.cancelSubmitReadyTimer();
+    this.submitReadyTimer = setTimeout(() => {
+      this.submitReadyTimer = null;
+      this.attemptSubmitWhenReady(epoch, deadline);
+    }, SUBMIT_READY_POLL_MS);
   }
 
   private schedulePostSubmitGuard(): void {
@@ -265,12 +291,18 @@ export class Autopilot {
 
   private cancelAutomationTimers(): void {
     this.cancelSettleTimer();
+    this.cancelSubmitReadyTimer();
     this.cancelPostSubmitTimer();
   }
 
   private cancelSettleTimer(): void {
     if (this.settleTimer !== null) clearTimeout(this.settleTimer);
     this.settleTimer = null;
+  }
+
+  private cancelSubmitReadyTimer(): void {
+    if (this.submitReadyTimer !== null) clearTimeout(this.submitReadyTimer);
+    this.submitReadyTimer = null;
   }
 
   private cancelPostSubmitTimer(): void {
