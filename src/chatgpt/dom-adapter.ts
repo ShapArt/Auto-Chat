@@ -1,6 +1,7 @@
 const COMPOSER_SELECTOR = '#prompt-textarea';
 const SUBMIT_SELECTOR = '#composer-submit-button';
 const STOP_SELECTOR = '[data-testid="stop-button"]';
+const ASSISTANT_BUSY_SELECTOR = '[data-message-author-role="assistant"][aria-busy="true"]';
 const SAFETY_CHECK_SELECTOR = '[data-streaming-response-status]';
 const USERSCRIPT_OWNED_SELECTOR = '[data-chatgpt-autopilot-owned="true"]';
 
@@ -27,7 +28,9 @@ export class ChatGptDomAdapter {
   }
 
   isGenerating(): boolean {
-    return this.findStopButton() !== null;
+    if (this.findStopButton() !== null) return true;
+    const busyAssistant = this.doc.querySelector<HTMLElement>(ASSISTANT_BUSY_SELECTOR);
+    return busyAssistant !== null && this.isVisible(busyAssistant);
   }
 
   isSafetyCheckActive(): boolean {
@@ -88,6 +91,7 @@ export class ChatGptDomAdapter {
       characterData: true,
       attributes: true,
       attributeFilter: [
+        'aria-busy',
         'aria-disabled',
         'contenteditable',
         'data-testid',
