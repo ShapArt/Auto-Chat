@@ -191,8 +191,23 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   const navigator = new ProjectNavigator(sessionIdentity, { document: doc, getPath });
 
   let safeMode = false;
-  let autopilot!: Autopilot;
   let previousAutopilotState: AutopilotState = 'DISABLED';
+
+  const autopilot = new Autopilot(adapter, settings, {
+    getConversationKey: getPath,
+    sessionIdentity,
+    onStateChange: (snapshot) => {
+      const timestamp = now();
+      if (snapshot.state === 'GENERATING' && previousAutopilotState !== 'GENERATING') {
+        recovery.onGenerationStarted(timestamp);
+      }
+      if (snapshot.state === 'READY' && previousAutopilotState === 'SETTLING') {
+        recovery.onGenerationFinished(timestamp);
+      }
+      previousAutopilotState = snapshot.state;
+      render();
+    },
+  });
 
   const recovery = new RecoverySupervisor(
     {
@@ -295,22 +310,6 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
         render();
       },
       onOpenSettings: () => openSettingsDialog(doc, settings, settingsStore),
-    },
-  });
-
-  autopilot = new Autopilot(adapter, settings, {
-    getConversationKey: getPath,
-    sessionIdentity,
-    onStateChange: (snapshot) => {
-      const timestamp = now();
-      if (snapshot.state === 'GENERATING' && previousAutopilotState !== 'GENERATING') {
-        recovery.onGenerationStarted(timestamp);
-      }
-      if (snapshot.state === 'READY' && previousAutopilotState === 'SETTLING') {
-        recovery.onGenerationFinished(timestamp);
-      }
-      previousAutopilotState = snapshot.state;
-      render();
     },
   });
 
