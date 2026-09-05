@@ -19,6 +19,7 @@ The project follows semantic versioning once releases are published.
 - Repeated identical visible recovery errors are idempotent instead of incrementing failure counters on every DOM mutation.
 - Explicit user Stop clears stale generation/recovery state while preserving the reload circuit-breaker history.
 - Autopilot-owned controls/settings DOM is excluded from relevant-activity tracking.
+- Visibility checks now reject streaming, recovery, and retry controls hidden by ancestor containers.
 
 ### Validation
 
