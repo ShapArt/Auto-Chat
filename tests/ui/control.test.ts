@@ -39,6 +39,11 @@ describe('AutopilotControl', () => {
     control.mount();
 
     expect(document.querySelectorAll('#chatgpt-autopilot-control')).toHaveLength(1);
+    expect(
+      document
+        .querySelector('#chatgpt-autopilot-control')
+        ?.getAttribute('data-chatgpt-autopilot-owned'),
+    ).toBe('true');
 
     const status = () => document.querySelector('[data-role="status"]')?.textContent;
     control.render(snapshot());
