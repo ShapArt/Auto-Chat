@@ -1,3 +1,4 @@
+import errorHtml from '../fixtures/chatgpt-error.html?raw';
 import idleHtml from '../fixtures/chatgpt-idle.html?raw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapAutopilot } from '../../src/main';
@@ -15,9 +16,18 @@ class MemoryStorage {
   }
 }
 
+function installHtml(html: string): void {
+  document.documentElement.innerHTML = html;
+}
+
+async function flushMutations(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe('standalone userscript bootstrap', () => {
   beforeEach(() => {
-    document.documentElement.innerHTML = idleHtml;
+    installHtml(idleHtml);
   });
 
   it('mounts controls on a synthetic ChatGPT page without submitting on idle or enable', async () => {
@@ -51,5 +61,41 @@ describe('standalone userscript bootstrap', () => {
 
     runtime.dispose();
     expect(document.querySelector('#chatgpt-autopilot-control')).toBeNull();
+  });
+
+  it('never runs recovery while disabled but handles a visible generation error after explicit enable', async () => {
+    installHtml(errorHtml);
+    const storage = new MemoryStorage();
+    storage.values.set(SETTINGS_KEY, {
+      ...DEFAULT_SETTINGS,
+      watchdogMs: 5_000,
+    });
+    const reload = vi.fn();
+
+    const runtime = await bootstrapAutopilot({
+      document,
+      storage,
+      registerMenuCommand: vi.fn(),
+      getPath: () => '/c/synthetic-error-thread',
+      reload,
+    });
+
+    const error = document.querySelector('[data-testid="conversation-turn-error"]') as HTMLElement;
+    error.style.opacity = '0.99';
+    await flushMutations();
+
+    expect(runtime.autopilot.getSnapshot().state).toBe('DISABLED');
+    expect(reload).not.toHaveBeenCalled();
+
+    (document.querySelector('[data-action="toggle"]') as HTMLButtonElement).click();
+    expect(runtime.autopilot.getSnapshot().state).toBe('ARMED');
+
+    error.style.opacity = '0.98';
+    await flushMutations();
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(runtime.recovery.getSnapshot().state).toBe('RELOADING');
+
+    runtime.dispose();
   });
 });
