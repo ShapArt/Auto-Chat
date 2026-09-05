@@ -23,10 +23,11 @@ The core is deliberately conservative:
 ## Current features
 
 - Deterministic autopilot state machine: `DISABLED → ARMED → GENERATING → SETTLING → READY → SUBMITTING → COOLDOWN` plus `PAUSED` and `ERROR`.
-- ChatGPT DOM adapter using structural selectors such as `#prompt-textarea`, `#composer-submit-button`, and `[data-testid="stop-button"]`.
+- ChatGPT DOM adapter using structural selectors such as `#prompt-textarea`, legacy `#composer-submit-button`, current `button[data-testid="send-button"]`, and `[data-testid="stop-button"]`.
 - `MutationObserver`-driven activity tracking with a low-frequency watchdog fallback.
 - Exactly-once generation epoch locking and completion debounce.
 - Manual-input and conversation-navigation guards.
+- Bounded Send-readiness polling after continuation insertion, with pending-composer revalidation before automated submission.
 - Configurable continuation prompt, checkpoint interval, and session turn limit.
 - `AUTOPILOT_CHECKPOINT_V1` request protocol for project-context continuity without parsing assistant output.
 - Conservative same-project rollover foundation using visible `/g/g-p-…/project` navigation only.
@@ -113,8 +114,10 @@ A normal cycle is:
 4. A completion debounce expires with no new generation activity.
 5. The script re-checks the conversation path and confirms the composer is still empty.
 6. The epoch is locked as submitted before any composer mutation occurs.
-7. The continuation prompt is inserted and the visible submit button is clicked once.
-8. A post-submit guard waits for the next real generation to begin.
+7. The continuation prompt is inserted into the empty composer.
+8. For at most two seconds, Auto-Chat waits for the visible Send control to become available while repeatedly confirming that the composer still matches the text it inserted.
+9. If the pending composer is manually edited, automation pauses instead of sending it; otherwise the visible Send button is clicked once when ready.
+10. A post-submit guard waits for the next real generation to begin.
 
 Repeated DOM mutations cannot cause a second submission for the same epoch.
 
@@ -158,6 +161,8 @@ Safety checks and service restrictions are outside this ladder and are never aut
 Auto-Chat's intended persistence contains settings and technical state only. Conversation text is not intentionally logged or persisted by the userscript.
 
 The reload-resume marker is deliberately content-free: it does not contain prompts, assistant output, cookies, tokens, account identifiers, or copied ChatGPT storage. It is one-shot and is cleared on bootstrap, Stop, or Safe Mode.
+
+During the bounded Send-readiness wait, the current composer is compared in memory with the continuation text that Auto-Chat itself just inserted. That comparison is used only to detect a manual edit before submission; the compared text is not added to logs or persistent state.
 
 Debug logging is off by default and is designed for technical state transitions, not prompts or outputs.
 
@@ -206,6 +211,8 @@ Before calling v0.1.0 stable, test on a harmless dedicated ChatGPT conversation/
 - the control mounts once and does not affect normal manual use while disabled;
 - enabling on idle submits nothing;
 - one completed generation triggers exactly one continuation;
+- Send appearing only after continuation insertion is handled within the bounded readiness wait;
+- manually editing a pending continuation before Send becomes ready pauses instead of submitting the changed draft;
 - typing in the composer before submission pauses and preserves the draft;
 - Stop and Safe Mode cancel pending automation;
 - extended/safety processing is not interrupted;
