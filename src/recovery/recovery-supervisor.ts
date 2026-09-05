@@ -132,7 +132,10 @@ export class RecoverySupervisor {
   }
 
   observeError(kind: UiErrorKind | null, now: number): void {
+    const previousError = this.currentError;
     this.currentError = kind;
+
+    if (kind !== null && kind === previousError) return;
 
     if (kind === null) {
       if (this.state === 'SAFETY_CHECK_WAIT' && this.generationActive) {
