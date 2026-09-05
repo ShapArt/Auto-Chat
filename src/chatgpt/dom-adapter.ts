@@ -77,6 +77,11 @@ export class ChatGptDomAdapter {
     return composer !== null && normalizedText(composer).length === 0;
   }
 
+  composerMatchesText(text: string): boolean {
+    const composer = this.findComposer();
+    return composer !== null && normalizedText(composer) === text.trim();
+  }
+
   canSubmit(): boolean {
     const button = this.findSubmitButton();
     if (!button || this.isGenerating()) return false;
