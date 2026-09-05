@@ -3,3 +3,4 @@ coverage/
 node_modules/
 docs/superpowers/**
 tests/fixtures/**
+chatgpt-autopilot.user.js
