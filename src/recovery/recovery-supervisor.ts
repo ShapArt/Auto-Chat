@@ -270,6 +270,20 @@ export class RecoverySupervisor {
     this.setState('RESTORING_AFTER_RELOAD', now);
   }
 
+  restoreReloadHistory(timestamps: readonly number[], now: number): void {
+    this.reloadTimestamps.length = 0;
+    for (const timestamp of timestamps) {
+      if (Number.isFinite(timestamp) && timestamp <= now) this.reloadTimestamps.push(timestamp);
+    }
+    this.reloadTimestamps.sort((left, right) => left - right);
+    this.pruneReloadWindow(now);
+  }
+
+  getReloadHistory(now: number): number[] {
+    this.pruneReloadWindow(now);
+    return [...this.reloadTimestamps];
+  }
+
   onAutomationDisabled(now: number): void {
     this.generationActive = false;
     this.currentError = null;
