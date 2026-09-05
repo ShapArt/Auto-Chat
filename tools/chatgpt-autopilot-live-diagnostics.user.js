@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         ChatGPT Autopilot Live Diagnostics
 // @namespace    https://github.com/ShapArt/Auto-Chat
-// @version      0.1.0-diag.1
+// @version      0.1.0-diag.2
 // @description  Non-mutating structural diagnostics for Auto-Chat live Firefox/Tampermonkey validation.
 // @match        https://chatgpt.com/*
 // @run-at       document-idle
+// @sandbox      DOM
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
@@ -63,7 +64,7 @@
     }
 
     return {
-      diagVersion: '0.1.0-diag.1',
+      diagVersion: '0.1.0-diag.2',
       timestamp: new Date().toISOString(),
       hrefPath: location.pathname,
       topFrame: window.top === window,
