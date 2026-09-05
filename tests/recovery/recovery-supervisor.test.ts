@@ -136,6 +136,18 @@ describe('RecoverySupervisor', () => {
     expect(actions.pause).toHaveBeenCalledWith('recovery circuit breaker tripped');
   });
 
+  it('restores the reload window so a page reload cannot reset the circuit breaker', () => {
+    const { supervisor, actions } = harness();
+
+    supervisor.restoreReloadHistory([0, 100], 200);
+    expect(supervisor.getReloadHistory(200)).toEqual([0, 100]);
+    expect(supervisor.requestReload(200)).toBe(false);
+
+    expect(actions.reload).not.toHaveBeenCalled();
+    expect(supervisor.getSnapshot().state).toBe('FATAL');
+    expect(actions.pause).toHaveBeenCalledWith('recovery circuit breaker tripped');
+  });
+
   it('trips the failure circuit breaker after repeated recoverable errors', () => {
     const { supervisor, actions } = harness();
 
