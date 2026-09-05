@@ -48,6 +48,19 @@ describe('ChatGptDomAdapter', () => {
     expect(adapter.canSubmit()).toBe(false);
   });
 
+  it('keeps generation active when an assistant turn is aria-busy even if the stop button disappears', () => {
+    loadFixture('chatgpt-streaming.html');
+    document.querySelector('[data-testid="stop-button"]')?.remove();
+    const assistantTurn = document.createElement('article');
+    assistantTurn.setAttribute('data-message-author-role', 'assistant');
+    assistantTurn.setAttribute('aria-busy', 'true');
+    document.querySelector('main')?.append(assistantTurn);
+
+    const adapter = new ChatGptDomAdapter(document);
+    expect(adapter.findStopButton()).toBeNull();
+    expect(adapter.isGenerating()).toBe(true);
+  });
+
   it('detects the structural extended-processing signal', () => {
     loadFixture('chatgpt-safety-check.html');
     const adapter = new ChatGptDomAdapter(document);
