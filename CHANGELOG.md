@@ -1,0 +1,37 @@
+# Changelog
+
+All notable changes to Auto-Chat will be documented in this file.
+
+The project follows semantic versioning once releases are published.
+
+## [Unreleased]
+
+### Validation
+
+- Live Firefox/Tampermonkey validation against the current ChatGPT UI is still pending.
+- v0.1.0 must not be described as stable until the manual checklist in the README is completed.
+
+## [0.1.0] - 2026-09-05
+
+### Added
+
+- Privacy-first standalone Tampermonkey userscript architecture for `https://chatgpt.com/*`.
+- Deterministic normal autopilot state machine with `DISABLED`, `ARMED`, `GENERATING`, `SETTLING`, `READY`, `SUBMITTING`, `COOLDOWN`, `PAUSED`, and `ERROR` states.
+- Generation epoch tracking and exactly-once continuation lock.
+- Completion debounce, post-submit guard, manual-input protection, and conversation-navigation pause.
+- ChatGPT DOM adapter with structural composer/submit/generation/safety signals and synthetic fixtures.
+- Local validated settings and debug-off-by-default technical logger.
+- Bounded recovery supervisor with soft/hard stall detection, safety-check immunity, finite stop/regenerate/reload flow, offline settling, and circuit breakers.
+- Conservative project navigation foundation with same-project validation and rollover index.
+- `AUTOPILOT_CHECKPOINT_V1` and `[AUTOPILOT_RESUME]` continuity protocol without assistant-output parsing.
+- Floating technical control with toggle, pause, emergency stop, Safe Mode, recovery reset, settings access, and `Alt+Shift+A` hotkey.
+- Standalone esbuild output targeting Firefox 115+.
+- Narrow userscript metadata with only `GM_getValue`, `GM_setValue`, and `GM_registerMenuCommand` grants.
+- CI checks for formatting, linting, type safety, unit/integration tests, bundle build, userscript metadata, and fixture privacy.
+- README, security policy, contribution guide, MIT license, architecture spec, and implementation plan.
+
+### Security
+
+- No backend ChatGPT API use, token/cookie access, telemetry, external runtime code, `unsafeWindow`, `GM_xmlhttpRequest`, or wildcard site permission.
+- Service restrictions and safety/verification states are terminal for automation rather than targets for bypass behavior.
+- Raw private ChatGPT HTML snapshot excluded from the repository; committed fixtures are synthetic.
