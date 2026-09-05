@@ -1,8 +1,12 @@
+import type { RecoveryUiSignals } from '../recovery/error-classifier';
+
 const COMPOSER_SELECTOR = '#prompt-textarea';
 const SUBMIT_SELECTOR = '#composer-submit-button';
 const STOP_SELECTOR = '[data-testid="stop-button"]';
 const ASSISTANT_BUSY_SELECTOR = '[data-message-author-role="assistant"][aria-busy="true"]';
 const SAFETY_CHECK_SELECTOR = '[data-streaming-response-status]';
+const GENERATION_ERROR_SELECTOR = '[data-testid="conversation-turn-error"]';
+const SYSTEM_SURFACE_SELECTOR = '[role="alert"], [role="dialog"]';
 const USERSCRIPT_OWNED_SELECTOR = '[data-chatgpt-autopilot-owned="true"]';
 
 function normalizedText(element: HTMLElement): string {
@@ -36,6 +40,36 @@ export class ChatGptDomAdapter {
   isSafetyCheckActive(): boolean {
     const indicator = this.doc.querySelector<HTMLElement>(SAFETY_CHECK_SELECTOR);
     return indicator !== null && this.isVisible(indicator);
+  }
+
+  getRecoveryUiSignals(): RecoveryUiSignals {
+    const systemText = this.getVisibleSystemSurfaceText();
+    const generationError = this.doc.querySelector<HTMLElement>(GENERATION_ERROR_SELECTOR);
+
+    return {
+      safetyCheck: this.isSafetyCheckActive(),
+      generationFailed: generationError !== null && this.isVisible(generationError),
+      networkError: /\bnetwork error\b|\bconnection (?:lost|error)\b/i.test(systemText),
+      websocketError: /\bwebsocket\b/i.test(systemText),
+      rateLimit: /\brate limit\b|\btoo many requests\b/i.test(systemText),
+      usageLimit:
+        /\busage limit\b|(?:you(?:'|’)ve|you have) (?:hit|reached) (?:your )?(?:message|usage) limit/i.test(
+          systemText,
+        ),
+      loginRequired: /\b(?:log in|sign in)\b[^.]{0,120}\b(?:continue|chatgpt|account)\b/i.test(
+        systemText,
+      ),
+      verificationRequired:
+        /\bverification required\b|\bverify (?:you are|you're|your account)\b|\bcaptcha\b/i.test(
+          systemText,
+        ),
+      conversationLimit:
+        /\bmaximum length for this conversation\b/i.test(systemText) ||
+        /\bconversation is too long,?\s*please start a new one\b/i.test(systemText),
+      composerUnavailable: false,
+      pageBroken: false,
+      scriptIncompatible: false,
+    };
   }
 
   isComposerEmpty(): boolean {
@@ -102,6 +136,23 @@ export class ChatGptDomAdapter {
     });
 
     return () => observer.disconnect();
+  }
+
+  private getVisibleSystemSurfaceText(): string {
+    const texts: string[] = [];
+    const surfaces = this.doc.querySelectorAll<HTMLElement>(SYSTEM_SURFACE_SELECTOR);
+
+    for (const surface of surfaces) {
+      if (!this.isVisible(surface)) continue;
+      if (surface.closest(USERSCRIPT_OWNED_SELECTOR)) continue;
+      if (surface.closest('[data-message-author-role]')) continue;
+      if (surface.closest('nav, aside')) continue;
+
+      const text = normalizedText(surface);
+      if (text.length > 0) texts.push(text);
+    }
+
+    return texts.join('\n');
   }
 
   private isUserscriptOwnedMutation(mutation: MutationRecord): boolean {
