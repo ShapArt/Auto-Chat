@@ -18,16 +18,35 @@ USERSCRIPT_URL = os.environ.get(
 )
 TARGET_URL = os.environ.get("TARGET_URL", "https://chatgpt.com/")
 CONTROL_SELECTOR = "#chatgpt-autopilot-control"
+PAGE_LOAD_TIMEOUT_SECONDS = 15
+
+
+def log(message: str) -> None:
+    print(f"[{time.monotonic():.3f}] {message}", flush=True)
+
+
+def navigate(driver: webdriver.Firefox, url: str, label: str) -> None:
+    log(f"navigate start: {label}: {url}")
+    started = time.monotonic()
+    try:
+        driver.get(url)
+        log(f"navigate complete: {label}: {time.monotonic() - started:.2f}s")
+    except TimeoutException:
+        log(f"navigate TIMEOUT after {time.monotonic() - started:.2f}s: {label}")
+        try:
+            driver.execute_script("window.stop();")
+        except Exception as exc:  # diagnostic only
+            log(f"window.stop failed: {exc!r}")
 
 
 def describe_windows(driver: webdriver.Firefox) -> None:
-    print("\n== Firefox windows ==")
+    log("== Firefox windows ==")
     for index, handle in enumerate(driver.window_handles):
         driver.switch_to.window(handle)
         try:
-            print(index, handle, repr(driver.title), driver.current_url)
+            log(f"window {index}: {handle} title={driver.title!r} url={driver.current_url}")
         except Exception as exc:  # diagnostic only
-            print(index, handle, "<unreadable>", repr(exc))
+            log(f"window {index}: {handle} <unreadable> {exc!r}")
 
 
 def find_install_button(driver: webdriver.Firefox):
@@ -54,7 +73,7 @@ def find_install_button(driver: webdriver.Firefox):
 
 def main() -> int:
     if not TAMPERMONKEY_XPI.is_file():
-        print(f"Tampermonkey XPI missing: {TAMPERMONKEY_XPI}", file=sys.stderr)
+        log(f"Tampermonkey XPI missing: {TAMPERMONKEY_XPI}")
         return 2
 
     options = Options()
@@ -66,13 +85,16 @@ def main() -> int:
     options.set_preference("extensions.autoDisableScopes", 0)
     options.set_preference("extensions.enabledScopes", 15)
 
+    log("starting Firefox")
     driver = webdriver.Firefox(options=options)
+    driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT_SECONDS)
     try:
-        print("Firefox:", driver.capabilities.get("browserVersion"))
-        print("Geckodriver:", driver.capabilities.get("moz:geckodriverVersion"))
+        log(f"Firefox: {driver.capabilities.get('browserVersion')}")
+        log(f"Geckodriver: {driver.capabilities.get('moz:geckodriverVersion')}")
 
+        log("installing Tampermonkey XPI")
         addon_id = driver.install_addon(str(TAMPERMONKEY_XPI), temporary=True)
-        print("Tampermonkey addon installed:", addon_id)
+        log(f"Tampermonkey addon installed: {addon_id}")
         time.sleep(3)
         describe_windows(driver)
 
@@ -83,8 +105,7 @@ def main() -> int:
             driver.close()
         driver.switch_to.window(primary)
 
-        print("\nOpening userscript URL:", USERSCRIPT_URL)
-        driver.get(USERSCRIPT_URL)
+        navigate(driver, USERSCRIPT_URL, "userscript raw URL")
         time.sleep(5)
         describe_windows(driver)
 
@@ -96,50 +117,49 @@ def main() -> int:
             all_labels.extend(labels)
             if button is None:
                 continue
-            print("Install candidate on:", driver.current_url)
-            print("Install button label:", repr(button.text or button.get_attribute("value")))
+            log(f"Install candidate on: {driver.current_url}")
+            log(f"Install button label: {(button.text or button.get_attribute('value'))!r}")
             button.click()
             install_clicked = True
             break
 
         if not install_clicked:
-            print("No Install button found. Visible button labels:", all_labels)
+            log(f"No Install button found. Visible button labels: {all_labels}")
             describe_windows(driver)
             return 10
 
         time.sleep(3)
         describe_windows(driver)
 
-        # Use whichever tab survived the installation flow.
         if not driver.window_handles:
-            print("All windows closed after userscript installation", file=sys.stderr)
+            log("All windows closed after userscript installation")
             return 11
         driver.switch_to.window(driver.window_handles[0])
 
-        print("\nOpening target:", TARGET_URL)
-        driver.get(TARGET_URL)
+        navigate(driver, TARGET_URL, "chatgpt target")
         try:
             WebDriverWait(driver, 20).until(
                 lambda current: len(current.find_elements(By.CSS_SELECTOR, CONTROL_SELECTOR)) == 1
             )
         except TimeoutException:
-            print("Auto-Chat control did not mount")
-            print("Title:", repr(driver.title))
-            print("URL:", driver.current_url)
-            print("Control count:", len(driver.find_elements(By.CSS_SELECTOR, CONTROL_SELECTOR)))
+            log("Auto-Chat control did not mount")
+            log(f"Title: {driver.title!r}")
+            log(f"URL: {driver.current_url}")
+            log(f"Control count: {len(driver.find_elements(By.CSS_SELECTOR, CONTROL_SELECTOR))}")
             return 20
 
         controls = driver.find_elements(By.CSS_SELECTOR, CONTROL_SELECTOR)
-        print("Control count:", len(controls))
-        print("Control text:", repr(controls[0].text))
+        log(f"Control count: {len(controls)}")
+        log(f"Control text: {controls[0].text!r}")
         if len(controls) != 1:
             return 21
         if "AUTO" not in controls[0].text:
             return 22
 
-        print("SPIKE PASS: Tampermonkey installed the userscript and Auto-Chat mounted once in Firefox.")
+        log("SPIKE PASS: Tampermonkey installed the userscript and Auto-Chat mounted once in Firefox.")
         return 0
     finally:
+        log("quitting Firefox")
         driver.quit()
 
 
