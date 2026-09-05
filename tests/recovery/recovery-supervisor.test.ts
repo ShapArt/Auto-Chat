@@ -160,4 +160,22 @@ describe('RecoverySupervisor', () => {
     expect(supervisor.getSnapshot().regeneratesThisTurn).toBe(0);
     expect(supervisor.getSnapshot().recoveryFailures).toBe(0);
   });
+
+  it('clears stale generation state when automation is explicitly disabled', () => {
+    const { supervisor, actions } = harness();
+    supervisor.onGenerationStarted(0);
+    supervisor.onRelevantActivity(500);
+
+    supervisor.onAutomationDisabled(2_500);
+    supervisor.tick(10_000);
+
+    const snapshot = supervisor.getSnapshot();
+    expect(snapshot.state).toBe('NORMAL');
+    expect(snapshot.generationActive).toBe(false);
+    expect(snapshot.generationStartedAt).toBeNull();
+    expect(snapshot.lastRelevantDomActivityAt).toBeNull();
+    expect(actions.stopGeneration).not.toHaveBeenCalled();
+    expect(actions.regenerate).not.toHaveBeenCalled();
+    expect(actions.reload).not.toHaveBeenCalled();
+  });
 });
