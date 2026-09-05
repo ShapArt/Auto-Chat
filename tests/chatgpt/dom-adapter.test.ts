@@ -108,4 +108,24 @@ describe('ChatGptDomAdapter', () => {
     await Promise.resolve();
     expect(onActivity).toHaveBeenCalledTimes(callsAfterDisconnect);
   });
+
+  it('ignores mutations inside userscript-owned DOM', async () => {
+    const owned = document.createElement('div');
+    owned.setAttribute('data-chatgpt-autopilot-owned', 'true');
+    document.body.append(owned);
+
+    const adapter = new ChatGptDomAdapter(document);
+    const onActivity = vi.fn();
+    const disconnect = adapter.observeRelevantActivity(onActivity);
+
+    owned.textContent = 'AUTO · generating';
+    await Promise.resolve();
+    expect(onActivity).not.toHaveBeenCalled();
+
+    adapter.findSubmitButton()?.setAttribute('disabled', '');
+    await Promise.resolve();
+    expect(onActivity).toHaveBeenCalledTimes(1);
+
+    disconnect();
+  });
 });
