@@ -7,7 +7,7 @@ import {
   ProjectNavigator,
   type SessionIdentity,
 } from './navigation/project-navigator';
-import { classifyUiError, EMPTY_UI_SIGNALS } from './recovery/error-classifier';
+import { classifyUiError } from './recovery/error-classifier';
 import {
   DEFAULT_RECOVERY_SETTINGS,
   RecoverySupervisor,
@@ -64,6 +64,7 @@ function openSettingsDialog(
 
   const dialog = doc.createElement('dialog');
   dialog.id = 'chatgpt-autopilot-settings';
+  dialog.setAttribute('data-chatgpt-autopilot-owned', 'true');
   dialog.style.cssText = [
     'position:fixed',
     'z-index:2147483001',
@@ -282,14 +283,47 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     });
   };
 
+  const recoveryIsArmed = (): boolean => {
+    const snapshot = autopilot.getSnapshot();
+    return snapshot.enabled && snapshot.state !== 'DISABLED' && snapshot.state !== 'PAUSED';
+  };
+
+  const inspectRecovery = (relevantActivity = false): void => {
+    if (!recoveryIsArmed()) return;
+    const timestamp = now();
+    if (relevantActivity) recovery.onRelevantActivity(timestamp);
+    recovery.observeError(classifyUiError(adapter.getRecoveryUiSignals()), timestamp);
+  };
+
+  const advanceRecovery = (): void => {
+    if (safeMode || !recoveryIsArmed()) return;
+    const timestamp = now();
+    recovery.tick(timestamp);
+    const state = recovery.getSnapshot().state;
+
+    if (state === 'STOPPING' && !adapter.isGenerating()) {
+      if (!recovery.requestRegenerate(timestamp)) recovery.requestReload(timestamp);
+    } else if (state === 'GENERATION_ERROR') {
+      if (!recovery.requestRegenerate(timestamp)) recovery.requestReload(timestamp);
+    } else if (state === 'CONVERSATION_EXHAUSTED') {
+      if (!recovery.requestRollover(timestamp)) autopilot.pause('project rollover unavailable');
+    }
+    render();
+  };
+
   const control = new AutopilotControl({
     document: doc,
     hotkey: settings.hotkey,
     callbacks: {
       onToggle: () => {
         if (safeMode) return;
-        if (autopilot.getSnapshot().enabled) autopilot.disable();
-        else autopilot.enable();
+        if (autopilot.getSnapshot().enabled) {
+          autopilot.disable();
+        } else {
+          autopilot.enable();
+          inspectRecovery();
+          advanceRecovery();
+        }
         render();
       },
       onPause: () => {
@@ -313,41 +347,13 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     },
   });
 
-  const inspectRecovery = (): void => {
-    const timestamp = now();
-    recovery.onRelevantActivity(timestamp);
-    recovery.observeError(
-      classifyUiError({
-        ...EMPTY_UI_SIGNALS,
-        safetyCheck: adapter.isSafetyCheckActive(),
-      }),
-      timestamp,
-    );
-  };
-
-  const advanceRecovery = (): void => {
-    if (safeMode) return;
-    const timestamp = now();
-    recovery.tick(timestamp);
-    const state = recovery.getSnapshot().state;
-
-    if (state === 'STOPPING' && !adapter.isGenerating()) {
-      if (!recovery.requestRegenerate(timestamp)) recovery.requestReload(timestamp);
-    } else if (state === 'GENERATION_ERROR') {
-      if (!recovery.requestRegenerate(timestamp)) recovery.requestReload(timestamp);
-    } else if (state === 'CONVERSATION_EXHAUSTED') {
-      if (!recovery.requestRollover(timestamp)) autopilot.pause('project rollover unavailable');
-    }
-    render();
-  };
-
   control.mount();
   autopilot.start();
   inspectRecovery();
   render();
 
   const disconnectRecoveryObserver = adapter.observeRelevantActivity(() => {
-    inspectRecovery();
+    inspectRecovery(true);
     advanceRecovery();
   });
   const recoveryTimer = setInterval(advanceRecovery, settings.watchdogMs);
@@ -367,8 +373,13 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
 
   options.registerMenuCommand('Autopilot: toggle', () => {
     if (safeMode) return;
-    if (autopilot.getSnapshot().enabled) autopilot.disable();
-    else autopilot.enable();
+    if (autopilot.getSnapshot().enabled) {
+      autopilot.disable();
+    } else {
+      autopilot.enable();
+      inspectRecovery();
+      advanceRecovery();
+    }
     render();
   });
   options.registerMenuCommand('Autopilot: emergency stop', () => {
