@@ -48,6 +48,31 @@ describe('ChatGptDomAdapter', () => {
     expect(adapter.canSubmit()).toBe(false);
   });
 
+  it('does not treat signals inside hidden ancestor containers as visible', () => {
+    loadFixture('chatgpt-streaming.html');
+    const stop = document.querySelector('[data-testid="stop-button"]') as HTMLElement;
+    const hidden = document.createElement('div');
+    hidden.style.display = 'none';
+    stop.parentElement?.insertBefore(hidden, stop);
+    hidden.append(stop);
+
+    const adapter = new ChatGptDomAdapter(document);
+    expect(adapter.findStopButton()).toBeNull();
+    expect(adapter.isGenerating()).toBe(false);
+
+    loadFixture('chatgpt-idle.html');
+    const alertWrapper = document.createElement('div');
+    alertWrapper.hidden = true;
+    const alert = document.createElement('div');
+    alert.setAttribute('role', 'alert');
+    alert.textContent = "You've reached the maximum length for this conversation.";
+    alertWrapper.append(alert);
+    document.querySelector('main')?.append(alertWrapper);
+
+    const recoveryAdapter = new ChatGptDomAdapter(document);
+    expect(recoveryAdapter.getRecoveryUiSignals().conversationLimit).toBe(false);
+  });
+
   it('keeps generation active when an assistant turn is aria-busy even if the stop button disappears', () => {
     loadFixture('chatgpt-streaming.html');
     document.querySelector('[data-testid="stop-button"]')?.remove();
