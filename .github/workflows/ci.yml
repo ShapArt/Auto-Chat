@@ -21,5 +21,7 @@ jobs:
         with:
           name: package-lock
           path: package-lock.json
-      - name: RED — state machine tests
+      - name: State machine tests
         run: npm test -- --run tests/core/state-machine.test.ts
+      - name: Typecheck
+        run: npm run typecheck
