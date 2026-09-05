@@ -1,12 +1,28 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import process from 'node:process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatGptDomAdapter } from '../../src/chatgpt/dom-adapter';
+import errorHtml from '../fixtures/chatgpt-error.html?raw';
+import idleHtml from '../fixtures/chatgpt-idle.html?raw';
+import manualInputHtml from '../fixtures/chatgpt-manual-input.html?raw';
+import safetyCheckHtml from '../fixtures/chatgpt-safety-check.html?raw';
+import streamingHtml from '../fixtures/chatgpt-streaming.html?raw';
 
-function loadFixture(name: string): void {
-  const html = readFileSync(resolve(process.cwd(), 'tests', 'fixtures', name), 'utf8');
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
+type FixtureName =
+  | 'chatgpt-idle.html'
+  | 'chatgpt-streaming.html'
+  | 'chatgpt-manual-input.html'
+  | 'chatgpt-error.html'
+  | 'chatgpt-safety-check.html';
+
+const FIXTURES: Record<FixtureName, string> = {
+  'chatgpt-idle.html': idleHtml,
+  'chatgpt-streaming.html': streamingHtml,
+  'chatgpt-manual-input.html': manualInputHtml,
+  'chatgpt-error.html': errorHtml,
+  'chatgpt-safety-check.html': safetyCheckHtml,
+};
+
+function loadFixture(name: FixtureName): void {
+  const parsed = new DOMParser().parseFromString(FIXTURES[name], 'text/html');
   document.body.innerHTML = parsed.body.innerHTML;
 }
 
