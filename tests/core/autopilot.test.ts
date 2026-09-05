@@ -6,6 +6,7 @@ class FakeAdapter {
   generating = false;
   composerEmpty = true;
   canSubmitValue = true;
+  submitAvailableOnlyAfterInsert = false;
   insertSucceeds = true;
   submitSucceeds = true;
   inserted: string[] = [];
@@ -21,7 +22,11 @@ class FakeAdapter {
   }
 
   canSubmit(): boolean {
-    return this.canSubmitValue && !this.generating;
+    return (
+      this.canSubmitValue &&
+      (!this.submitAvailableOnlyAfterInsert || !this.composerEmpty) &&
+      !this.generating
+    );
   }
 
   insertComposerText(text: string): boolean {
@@ -175,6 +180,22 @@ describe('Autopilot', () => {
 
     expect(autopilot.getSnapshot().state).toBe('PAUSED');
     expect(autopilot.getSnapshot().pauseReason).toBe('conversation changed');
+  });
+
+  it('inserts continuation before requiring the live send control to become available', () => {
+    const { adapter, autopilot } = harness();
+    adapter.submitAvailableOnlyAfterInsert = true;
+    autopilot.enable();
+    adapter.generating = true;
+    adapter.emitActivity();
+    adapter.generating = false;
+    adapter.emitActivity();
+
+    vi.advanceTimersByTime(100);
+
+    expect(adapter.inserted).toHaveLength(1);
+    expect(adapter.submitCount).toBe(1);
+    expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
   });
 
   it('fails closed if the composer cannot submit at the completion boundary', () => {
