@@ -68,6 +68,29 @@ describe('ChatGptDomAdapter', () => {
     expect(adapter.isSafetyCheckActive()).toBe(true);
   });
 
+  it('exposes visible recovery signals without treating assistant text as a blocker', () => {
+    loadFixture('chatgpt-error.html');
+    const errorAdapter = new ChatGptDomAdapter(document);
+    expect(errorAdapter.getRecoveryUiSignals().generationFailed).toBe(true);
+
+    loadFixture('chatgpt-idle.html');
+    const alert = document.createElement('div');
+    alert.setAttribute('role', 'alert');
+    alert.textContent =
+      "You've reached the maximum length for this conversation, but you can keep talking by starting a new chat.";
+    document.querySelector('main')?.append(alert);
+    const limitAdapter = new ChatGptDomAdapter(document);
+    expect(limitAdapter.getRecoveryUiSignals().conversationLimit).toBe(true);
+
+    alert.remove();
+    const assistantText = document.createElement('article');
+    assistantText.setAttribute('data-message-author-role', 'assistant');
+    assistantText.textContent =
+      "You've reached the maximum length for this conversation, but you can keep talking by starting a new chat.";
+    document.querySelector('main')?.append(assistantText);
+    expect(limitAdapter.getRecoveryUiSignals().conversationLimit).toBe(false);
+  });
+
   it('never overwrites non-empty manual composer text', () => {
     loadFixture('chatgpt-manual-input.html');
     const adapter = new ChatGptDomAdapter(document);
