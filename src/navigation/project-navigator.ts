@@ -55,6 +55,20 @@ function projectHomePath(projectKey: string): string {
   return `/g/${projectKey}/project`;
 }
 
+function isVisible(element: HTMLElement): boolean {
+  const view = element.ownerDocument.defaultView;
+  let current: HTMLElement | null = element;
+
+  while (current) {
+    if (current.hidden || current.getAttribute('aria-hidden') === 'true') return false;
+    const style = view?.getComputedStyle(current);
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+    current = current.parentElement;
+  }
+
+  return true;
+}
+
 function defaultRandomSuffix(): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = new Uint8Array(6);
@@ -189,6 +203,8 @@ export class ProjectNavigator {
     const anchors = this.doc.querySelectorAll<HTMLAnchorElement>('a[href]');
 
     for (const anchor of anchors) {
+      if (!isVisible(anchor)) continue;
+
       const href = anchor.getAttribute('href');
       if (!href) continue;
 
