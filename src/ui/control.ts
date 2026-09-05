@@ -102,7 +102,12 @@ function parseHotkey(value: string): ParsedHotkey | null {
   return { key: key.toLowerCase(), alt, shift, ctrl, meta };
 }
 
-function button(documentRef: Document, action: string, label: string, title: string): HTMLButtonElement {
+function button(
+  documentRef: Document,
+  action: string,
+  label: string,
+  title: string,
+): HTMLButtonElement {
   const element = documentRef.createElement('button');
   element.type = 'button';
   element.dataset.action = action;
@@ -187,7 +192,12 @@ export class AutopilotControl {
     const pauseButton = button(this.doc, 'pause', 'Pause', 'Pause automation');
     const stopButton = button(this.doc, 'stop', 'Stop', 'Emergency stop and disable automation');
     const safeButton = button(this.doc, 'safe-mode', 'Safe', 'Enter Safe Mode');
-    const resetButton = button(this.doc, 'reset-recovery', 'Reset', 'Reset recovery circuit breaker');
+    const resetButton = button(
+      this.doc,
+      'reset-recovery',
+      'Reset',
+      'Reset recovery circuit breaker',
+    );
     const settingsButton = button(this.doc, 'settings', 'Settings', 'Open Autopilot settings');
 
     statusButton.addEventListener('click', this.callbacks.onToggle);
@@ -197,7 +207,15 @@ export class AutopilotControl {
     resetButton.addEventListener('click', this.callbacks.onResetRecovery);
     settingsButton.addEventListener('click', this.callbacks.onOpenSettings);
 
-    root.append(style, statusButton, pauseButton, stopButton, safeButton, resetButton, settingsButton);
+    root.append(
+      style,
+      statusButton,
+      pauseButton,
+      stopButton,
+      safeButton,
+      resetButton,
+      settingsButton,
+    );
     this.doc.body.append(root);
 
     this.root = root;
@@ -221,7 +239,10 @@ export class AutopilotControl {
     if (!this.root || !this.statusButton || !this.resetRecoveryButton) return;
 
     this.statusButton.textContent = stateLabel(snapshot);
-    this.statusButton.setAttribute('aria-pressed', snapshot.enabled && !snapshot.safeMode ? 'true' : 'false');
+    this.statusButton.setAttribute(
+      'aria-pressed',
+      snapshot.enabled && !snapshot.safeMode ? 'true' : 'false',
+    );
     this.resetRecoveryButton.disabled = snapshot.safeMode;
     this.root.dataset.state = snapshot.state.toLowerCase();
     this.root.dataset.safeMode = snapshot.safeMode ? 'true' : 'false';

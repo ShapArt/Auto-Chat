@@ -60,7 +60,8 @@ export class Autopilot {
     private readonly settings: AutopilotSettings,
     options: AutopilotOptions = {},
   ) {
-    this.getConversationKey = options.getConversationKey ?? (() => globalThis.location?.pathname ?? '');
+    this.getConversationKey =
+      options.getConversationKey ?? (() => globalThis.location?.pathname ?? '');
     this.onStateChange = options.onStateChange;
     this.logger = options.logger ?? new Logger(settings.debug);
     this.sessionIdentity = options.sessionIdentity ?? createSessionIdentity();

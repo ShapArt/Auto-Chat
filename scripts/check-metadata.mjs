@@ -32,7 +32,8 @@ const forbidden = [
 ];
 
 for (const { pattern, label } of forbidden) {
-  if (pattern.test(header)) throw new Error(`Forbidden userscript capability in metadata: ${label}`);
+  if (pattern.test(header))
+    throw new Error(`Forbidden userscript capability in metadata: ${label}`);
 }
 
 const grants = [...header.matchAll(/^\/\/\s*@grant\s+([^\s]+)\s*$/gm)].map((match) => match[1]);

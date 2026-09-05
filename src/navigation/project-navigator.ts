@@ -74,7 +74,11 @@ export function createSessionIdentity(
   const year = now.getUTCFullYear().toString().padStart(4, '0');
   const month = (now.getUTCMonth() + 1).toString().padStart(2, '0');
   const day = now.getUTCDate().toString().padStart(2, '0');
-  const suffix = randomSuffix().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || '000000';
+  const suffix =
+    randomSuffix()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 12) || '000000';
 
   return {
     sessionId: `auto-${year}${month}${day}-${suffix}`,
@@ -119,8 +123,7 @@ export class ProjectNavigator {
   private readonly doc: Document;
   private readonly getPath: () => string;
   private readonly waitForNavigationOverride:
-    | ((predicate: (path: string) => boolean) => Promise<boolean>)
-    | undefined;
+    ((predicate: (path: string) => boolean) => Promise<boolean>) | undefined;
 
   constructor(
     private readonly identity: SessionIdentity,

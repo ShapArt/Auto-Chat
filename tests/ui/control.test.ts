@@ -49,7 +49,9 @@ describe('AutopilotControl', () => {
     expect(status()).toBe('AUTO · generating');
     control.render(snapshot({ state: 'PAUSED', enabled: true }));
     expect(status()).toBe('AUTO · paused');
-    control.render(snapshot({ state: 'GENERATING', enabled: true, recoveryState: 'SAFETY_CHECK_WAIT' }));
+    control.render(
+      snapshot({ state: 'GENERATING', enabled: true, recoveryState: 'SAFETY_CHECK_WAIT' }),
+    );
     expect(status()).toBe('AUTO · safety check');
   });
 
@@ -60,7 +62,9 @@ describe('AutopilotControl', () => {
     (document.querySelector('[data-action="toggle"]') as HTMLButtonElement).click();
     expect(callbacks.onToggle).toHaveBeenCalledTimes(1);
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A', altKey: true, shiftKey: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'A', altKey: true, shiftKey: true }),
+    );
     expect(callbacks.onToggle).toHaveBeenCalledTimes(2);
 
     const composing = new KeyboardEvent('keydown', { key: 'A', altKey: true, shiftKey: true });
@@ -73,7 +77,17 @@ describe('AutopilotControl', () => {
     const { control, callbacks } = harness();
     control.mount();
 
-    for (const state of ['DISABLED', 'ARMED', 'GENERATING', 'SETTLING', 'READY', 'SUBMITTING', 'COOLDOWN', 'PAUSED', 'ERROR'] as const) {
+    for (const state of [
+      'DISABLED',
+      'ARMED',
+      'GENERATING',
+      'SETTLING',
+      'READY',
+      'SUBMITTING',
+      'COOLDOWN',
+      'PAUSED',
+      'ERROR',
+    ] as const) {
       control.render(snapshot({ state, enabled: state !== 'DISABLED' }));
       (document.querySelector('[data-action="stop"]') as HTMLButtonElement).click();
     }
@@ -90,7 +104,9 @@ describe('AutopilotControl', () => {
 
     control.render(snapshot({ safeMode: true, enabled: false }));
     expect(document.querySelector('[data-role="status"]')?.textContent).toBe('AUTO · safe mode');
-    expect((document.querySelector('[data-action="reset-recovery"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (document.querySelector('[data-action="reset-recovery"]') as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(document.querySelector('[data-action="submit"]')).toBeNull();
     expect(document.querySelector('[data-action="regenerate"]')).toBeNull();
     expect(document.querySelector('[data-action="reload"]')).toBeNull();
@@ -119,7 +135,9 @@ describe('AutopilotControl', () => {
     control.unmount();
 
     expect(document.querySelector('#chatgpt-autopilot-control')).toBeNull();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A', altKey: true, shiftKey: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'A', altKey: true, shiftKey: true }),
+    );
     expect(callbacks.onToggle).not.toHaveBeenCalled();
   });
 });

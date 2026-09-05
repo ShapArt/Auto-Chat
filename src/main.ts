@@ -13,11 +13,7 @@ import {
   RecoverySupervisor,
   type RecoverySnapshot,
 } from './recovery/recovery-supervisor';
-import {
-  SettingsStore,
-  type AutopilotSettings,
-  type SettingsStorage,
-} from './settings/settings';
+import { SettingsStore, type AutopilotSettings, type SettingsStorage } from './settings/settings';
 import { AutopilotControl } from './ui/control';
 
 export interface BootstrapOptions {
@@ -136,7 +132,8 @@ function openSettingsDialog(
   save.type = 'submit';
   save.textContent = 'Save';
   for (const item of [cancel, save]) {
-    item.style.cssText = 'border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 11px;background:#27272a;color:#f4f4f5';
+    item.style.cssText =
+      'border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 11px;background:#27272a;color:#f4f4f5';
   }
   actions.append(cancel, save);
 
@@ -234,7 +231,11 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
             return;
           }
 
-          const submitted = await submitResumeAfterRollover(adapter, sessionIdentity, () => safeMode);
+          const submitted = await submitResumeAfterRollover(
+            adapter,
+            sessionIdentity,
+            () => safeMode,
+          );
           if (!submitted || safeMode) {
             recovery.observeError('COMPOSER_UNAVAILABLE', now());
             render();
@@ -380,7 +381,9 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     autopilot.disable();
     render();
   });
-  options.registerMenuCommand('Autopilot: settings', () => openSettingsDialog(doc, settings, settingsStore));
+  options.registerMenuCommand('Autopilot: settings', () =>
+    openSettingsDialog(doc, settings, settingsStore),
+  );
 
   return {
     autopilot,
@@ -399,15 +402,9 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   };
 }
 
-declare const GM_getValue:
-  | (<T>(key: string, defaultValue: T) => T | Promise<T>)
-  | undefined;
-declare const GM_setValue:
-  | (<T>(key: string, value: T) => void | Promise<void>)
-  | undefined;
-declare const GM_registerMenuCommand:
-  | ((name: string, callback: () => void) => unknown)
-  | undefined;
+declare const GM_getValue: (<T>(key: string, defaultValue: T) => T | Promise<T>) | undefined;
+declare const GM_setValue: (<T>(key: string, value: T) => void | Promise<void>) | undefined;
+declare const GM_registerMenuCommand: ((name: string, callback: () => void) => unknown) | undefined;
 
 if (
   typeof document !== 'undefined' &&

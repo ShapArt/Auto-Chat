@@ -51,7 +51,8 @@ function nonEmptyString(value: unknown, fallback: string, maxLength: number): st
 }
 
 export function normalizeSettings(value: unknown): AutopilotSettings {
-  const source = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const source =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 
   const softStallTimeoutMs = finiteNumber(
     source.softStallTimeoutMs,
@@ -61,12 +62,7 @@ export function normalizeSettings(value: unknown): AutopilotSettings {
   );
   const hardStallTimeoutMs = Math.max(
     softStallTimeoutMs,
-    finiteNumber(
-      source.hardStallTimeoutMs,
-      DEFAULT_SETTINGS.hardStallTimeoutMs,
-      60_000,
-      3_600_000,
-    ),
+    finiteNumber(source.hardStallTimeoutMs, DEFAULT_SETTINGS.hardStallTimeoutMs, 60_000, 3_600_000),
   );
 
   return {
