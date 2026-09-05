@@ -2,6 +2,10 @@ import errorHtml from '../fixtures/chatgpt-error.html?raw';
 import idleHtml from '../fixtures/chatgpt-idle.html?raw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapAutopilot } from '../../src/main';
+import {
+  createReloadResumeMarker,
+  RELOAD_RESUME_KEY,
+} from '../../src/recovery/reload-resume';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '../../src/settings/settings';
 
 class MemoryStorage {
@@ -95,6 +99,73 @@ describe('standalone userscript bootstrap', () => {
 
     expect(reload).toHaveBeenCalledTimes(1);
     expect(runtime.recovery.getSnapshot().state).toBe('RELOADING');
+
+    runtime.dispose();
+  });
+
+  it('restores a fresh same-path reload marker without immediately submitting', async () => {
+    const storage = new MemoryStorage();
+    storage.values.set(SETTINGS_KEY, {
+      ...DEFAULT_SETTINGS,
+      watchdogMs: 5_000,
+    });
+    storage.values.set(
+      RELOAD_RESUME_KEY,
+      createReloadResumeMarker({
+        path: '/g/g-p-synthetic/c/thread-a',
+        requestedAt: 10_000,
+        sessionIdentity: { sessionId: 'auto-20260905-resume01', rolloverIndex: 3 },
+        reloadTimestamps: [9_000, 10_000],
+      }),
+    );
+    const submit = document.querySelector('#composer-submit-button') as HTMLButtonElement;
+    const onSubmit = vi.fn();
+    submit.addEventListener('click', onSubmit);
+
+    const runtime = await bootstrapAutopilot({
+      document,
+      storage,
+      registerMenuCommand: vi.fn(),
+      getPath: () => '/g/g-p-synthetic/c/thread-a',
+      reload: vi.fn(),
+      now: () => 10_500,
+    });
+
+    const snapshot = runtime.autopilot.getSnapshot();
+    expect(snapshot.state).toBe('ARMED');
+    expect(snapshot.enabled).toBe(true);
+    expect(snapshot.sessionId).toBe('auto-20260905-resume01');
+    expect(snapshot.rolloverIndex).toBe(3);
+    expect(runtime.recovery.getReloadHistory(10_500)).toEqual([9_000, 10_000]);
+    expect(storage.values.get(RELOAD_RESUME_KEY)).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    runtime.dispose();
+  });
+
+  it('consumes an invalid reload marker and stays disabled', async () => {
+    const storage = new MemoryStorage();
+    storage.values.set(RELOAD_RESUME_KEY, {
+      version: 1,
+      path: '/c/other-thread',
+      requestedAt: 10_000,
+      sessionId: 'auto-20260905-invalid',
+      rolloverIndex: 0,
+      reloadTimestamps: [10_000],
+    });
+
+    const runtime = await bootstrapAutopilot({
+      document,
+      storage,
+      registerMenuCommand: vi.fn(),
+      getPath: () => '/c/current-thread',
+      reload: vi.fn(),
+      now: () => 10_500,
+    });
+
+    expect(runtime.autopilot.getSnapshot().state).toBe('DISABLED');
+    expect(runtime.autopilot.getSnapshot().enabled).toBe(false);
+    expect(storage.values.get(RELOAD_RESUME_KEY)).toBeNull();
 
     runtime.dispose();
   });
