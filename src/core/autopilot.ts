@@ -229,11 +229,7 @@ export class Autopilot {
       return;
     }
 
-    this.attemptSubmitWhenReady(
-      epoch,
-      continuationPrompt,
-      Date.now() + SUBMIT_READY_TIMEOUT_MS,
-    );
+    this.attemptSubmitWhenReady(epoch, continuationPrompt, Date.now() + SUBMIT_READY_TIMEOUT_MS);
   }
 
   private attemptSubmitWhenReady(epoch: number, expectedText: string, deadline: number): void {
