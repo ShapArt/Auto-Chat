@@ -20,6 +20,9 @@ The project follows semantic versioning once releases are published.
 - Explicit user Stop clears stale generation/recovery state while preserving the reload circuit-breaker history.
 - Autopilot-owned controls/settings DOM is excluded from relevant-activity tracking.
 - Visibility checks now reject streaming, recovery, and retry controls hidden by ancestor containers.
+- Continuations are inserted before submit readiness is required, with a bounded two-second wait for ChatGPT to mount or enable the Send control.
+- A pending continuation must still match the text inserted by Auto-Chat before automated submission; manual edits pause automation instead of being sent.
+- Submit-button detection supports both the legacy `#composer-submit-button` id and the current `[data-testid="send-button"]` structural selector.
 
 ### Validation
 
