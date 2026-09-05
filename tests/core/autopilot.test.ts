@@ -182,24 +182,21 @@ describe('Autopilot', () => {
     expect(autopilot.getSnapshot().pauseReason).toBe('conversation changed');
   });
 
-  it(
-    'inserts continuation before requiring the live send control to become available',
-    () => {
-      const { adapter, autopilot } = harness();
-      adapter.submitAvailableOnlyAfterInsert = true;
-      autopilot.enable();
-      adapter.generating = true;
-      adapter.emitActivity();
-      adapter.generating = false;
-      adapter.emitActivity();
+  it('inserts continuation before requiring the live send control to become available', () => {
+    const { adapter, autopilot } = harness();
+    adapter.submitAvailableOnlyAfterInsert = true;
+    autopilot.enable();
+    adapter.generating = true;
+    adapter.emitActivity();
+    adapter.generating = false;
+    adapter.emitActivity();
 
-      vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(100);
 
-      expect(adapter.inserted).toHaveLength(1);
-      expect(adapter.submitCount).toBe(1);
-      expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
-    },
-  );
+    expect(adapter.inserted).toHaveLength(1);
+    expect(adapter.submitCount).toBe(1);
+    expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
+  });
 
   it('fails closed if the composer cannot submit at the completion boundary', () => {
     const { adapter, autopilot } = harness();
