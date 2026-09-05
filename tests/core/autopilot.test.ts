@@ -227,7 +227,7 @@ describe('Autopilot', () => {
     expect(autopilot.getSnapshot().state).toBe('COOLDOWN');
   });
 
-  it('fails closed if the composer cannot submit at the completion boundary', () => {
+  it('fails closed if the composer never becomes submittable within the bounded wait', () => {
     const { adapter, autopilot } = harness();
     autopilot.enable();
     adapter.generating = true;
@@ -237,6 +237,11 @@ describe('Autopilot', () => {
     adapter.canSubmitValue = false;
 
     vi.advanceTimersByTime(100);
+
+    expect(autopilot.getSnapshot().state).toBe('SUBMITTING');
+    expect(adapter.submitCount).toBe(0);
+
+    vi.advanceTimersByTime(2_000);
 
     expect(autopilot.getSnapshot().state).toBe('ERROR');
     expect(adapter.submitCount).toBe(0);
