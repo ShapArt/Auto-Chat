@@ -171,10 +171,17 @@ export class ChatGptDomAdapter {
   }
 
   private isVisible(element: HTMLElement): boolean {
-    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
-    const style = this.doc.defaultView?.getComputedStyle(element);
-    if (!style) return true;
-    return style.display !== 'none' && style.visibility !== 'hidden';
+    const view = this.doc.defaultView;
+    let current: HTMLElement | null = element;
+
+    while (current) {
+      if (current.hidden || current.getAttribute('aria-hidden') === 'true') return false;
+      const style = view?.getComputedStyle(current);
+      if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+      current = current.parentElement;
+    }
+
+    return true;
   }
 
   private selectContents(element: HTMLElement): void {

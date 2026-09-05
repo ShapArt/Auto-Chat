@@ -41,10 +41,17 @@ export interface AutopilotRuntime {
 }
 
 function visible(element: HTMLElement): boolean {
-  if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
   const view = element.ownerDocument.defaultView;
-  const style = view?.getComputedStyle(element);
-  return !style || (style.display !== 'none' && style.visibility !== 'hidden');
+  let current: HTMLElement | null = element;
+
+  while (current) {
+    if (current.hidden || current.getAttribute('aria-hidden') === 'true') return false;
+    const style = view?.getComputedStyle(current);
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+    current = current.parentElement;
+  }
+
+  return true;
 }
 
 function clickFirstVisible(doc: Document, selectors: readonly string[]): boolean {
