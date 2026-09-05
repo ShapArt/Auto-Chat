@@ -1,7 +1,7 @@
 import type { RecoveryUiSignals } from '../recovery/error-classifier';
 
 const COMPOSER_SELECTOR = '#prompt-textarea';
-const SUBMIT_SELECTOR = '#composer-submit-button';
+const SUBMIT_SELECTOR = '#composer-submit-button, button[data-testid="send-button"]';
 const STOP_SELECTOR = '[data-testid="stop-button"]';
 const ASSISTANT_BUSY_SELECTOR = '[data-message-author-role="assistant"][aria-busy="true"]';
 const SAFETY_CHECK_SELECTOR = '[data-streaming-response-status]';
