@@ -14,14 +14,7 @@ describe('reload resume marker', () => {
     });
 
     expect(Object.keys(marker).sort()).toEqual(
-      [
-        'path',
-        'reloadTimestamps',
-        'requestedAt',
-        'rolloverIndex',
-        'sessionId',
-        'version',
-      ].sort(),
+      ['path', 'reloadTimestamps', 'requestedAt', 'rolloverIndex', 'sessionId', 'version'].sort(),
     );
     expect(JSON.stringify(marker).toLowerCase()).not.toContain('prompt');
     expect(JSON.stringify(marker).toLowerCase()).not.toContain('conversationtext');
