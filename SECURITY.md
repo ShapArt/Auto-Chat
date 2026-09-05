@@ -6,7 +6,17 @@ Auto-Chat is currently a **v0.1.0 MVP**. Automated verification exists, but live
 
 ## Security and privacy boundary
 
-The project is intentionally limited to the visible `chatgpt.com` page DOM and local userscript settings.
+The project is intentionally limited to the visible `chatgpt.com` page DOM plus narrowly scoped userscript persistence for local settings and technical recovery state.
+
+The one-shot reload-resume marker may persist only:
+
+- the current `chatgpt.com` path;
+- the recovery request timestamp;
+- Auto-Chat's generated technical session ID;
+- the rollover index;
+- recent reload timestamps used by the reload circuit breaker.
+
+The marker must not contain prompts, assistant output, cookies, authentication/session tokens, account identifiers, copied ChatGPT storage, or other conversation content. It is consumed on the next bootstrap whether valid or invalid, is accepted only for the exact same path within a short freshness window, and is also cleared by explicit Stop or Safe Mode.
 
 The following are considered security-sensitive regressions:
 
@@ -15,8 +25,9 @@ The following are considered security-sensitive regressions:
 - adding telemetry, analytics, external servers, remote code loading, `eval`, or obfuscation;
 - adding broad userscript permissions such as `unsafeWindow`, `GM_xmlhttpRequest`, cookie/tab access, or wildcard site matching without an approved redesign;
 - persisting or logging conversation text;
+- expanding the reload-resume marker beyond narrowly scoped technical recovery state;
 - automatically bypassing or attempting to evade safety, usage/rate, login, CAPTCHA, or verification restrictions;
-- making recovery unbounded so it can enter retry/reload loops;
+- making recovery unbounded so it can enter retry/reload loops, including by resetting reload history across an automated page reload;
 - allowing automation to overwrite or submit an existing manual composer draft;
 - allowing one generation epoch to trigger multiple continuation submissions.
 
