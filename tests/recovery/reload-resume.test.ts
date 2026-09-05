@@ -14,7 +14,14 @@ describe('reload resume marker', () => {
     });
 
     expect(Object.keys(marker).sort()).toEqual(
-      ['path', 'reloadTimestamps', 'requestedAt', 'rolloverIndex', 'sessionId', 'version'].sort(),
+      [
+        'path',
+        'reloadTimestamps',
+        'requestedAt',
+        'rolloverIndex',
+        'sessionId',
+        'version',
+      ].sort(),
     );
     expect(JSON.stringify(marker).toLowerCase()).not.toContain('prompt');
     expect(JSON.stringify(marker).toLowerCase()).not.toContain('conversationtext');
@@ -34,7 +41,9 @@ describe('reload resume marker', () => {
     expect(validateReloadResumeMarker(marker, '/c/thread-b', 10_500, 60_000)).toBeNull();
     expect(validateReloadResumeMarker(marker, '/c/thread-a', 100_001, 60_000)).toBeNull();
     expect(validateReloadResumeMarker(marker, '/c/thread-a', 9_000, 60_000)).toBeNull();
-    expect(validateReloadResumeMarker({ ...marker, sessionId: '' }, '/c/thread-a', 10_500, 60_000)).toBeNull();
+    expect(
+      validateReloadResumeMarker({ ...marker, sessionId: '' }, '/c/thread-a', 10_500, 60_000),
+    ).toBeNull();
     expect(
       validateReloadResumeMarker(
         { ...marker, reloadTimestamps: ['bad'] },
