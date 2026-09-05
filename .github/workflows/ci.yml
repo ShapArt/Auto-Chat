@@ -14,13 +14,8 @@ jobs:
           node-version: '22.x'
       - name: Use npm 11.6.0
         run: npm install --global npm@11.6.0 && npm --version
-      - name: Install dependencies and generate lockfile
-        run: npm install --no-audit --no-fund
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-lock
-          path: package-lock.json
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
       - name: Format check
         run: npm run format:check
       - name: Lint
@@ -35,3 +30,9 @@ jobs:
         run: npm run check:metadata
       - name: Privacy scan
         run: npm run check:privacy
+      - name: Upload verified userscript
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-autopilot-userscript
+          path: dist/chatgpt-autopilot.user.js
+          if-no-files-found: error
