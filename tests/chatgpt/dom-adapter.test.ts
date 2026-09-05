@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import process from 'node:process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatGptDomAdapter } from '../../src/chatgpt/dom-adapter';
 
 function loadFixture(name: string): void {
-  const html = readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8');
-  document.documentElement.innerHTML = html;
+  const html = readFileSync(resolve(process.cwd(), 'tests', 'fixtures', name), 'utf8');
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  document.body.innerHTML = parsed.body.innerHTML;
 }
 
 describe('ChatGptDomAdapter', () => {
