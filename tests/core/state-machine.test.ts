@@ -26,6 +26,7 @@ describe('transition', () => {
   it('manual input and conversation changes pause from active states', () => {
     expect(transition('GENERATING', { type: 'MANUAL_INPUT' })).toBe('PAUSED');
     expect(transition('COOLDOWN', { type: 'CONVERSATION_CHANGED' })).toBe('PAUSED');
+    expect(transition('ARMED', { type: 'PAUSE' })).toBe('PAUSED');
   });
 
   it('fails closed into ERROR', () => {
