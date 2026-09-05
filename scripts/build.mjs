@@ -10,6 +10,7 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @license      MIT
 // @match        https://chatgpt.com/*
 // @run-at       document-idle
+// @sandbox      DOM
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
