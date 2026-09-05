@@ -1,0 +1,30 @@
+{
+  "name": "chatgpt-autopilot-userscript",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Privacy-first Firefox/Tampermonkey userscript for safely continuing long-running ChatGPT workflows.",
+  "scripts": {
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "node scripts/build.mjs",
+    "check:metadata": "node scripts/check-metadata.mjs",
+    "check:privacy": "node scripts/privacy-scan.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "esbuild": "0.28.2",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.69.0",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
