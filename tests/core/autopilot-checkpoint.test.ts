@@ -16,6 +16,10 @@ class FakeAdapter {
     return this.composerEmpty;
   }
 
+  composerMatchesText(text: string): boolean {
+    return !this.composerEmpty && this.inserted.at(-1) === text;
+  }
+
   canSubmit(): boolean {
     return !this.generating;
   }
