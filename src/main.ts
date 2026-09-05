@@ -187,6 +187,7 @@ async function submitResumeAfterRollover(
       inserted = adapter.insertComposerText(prompt);
     }
 
+    if (inserted && !adapter.composerMatchesText(prompt)) return false;
     if (inserted && adapter.canSubmit()) return adapter.submitPrompt();
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
   }
@@ -225,6 +226,8 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   const navigator = new ProjectNavigator(sessionIdentity, { document: doc, getPath });
 
   let safeMode = false;
+  let resumeAfterNetwork = false;
+  let networkResumeTimer: ReturnType<typeof setTimeout> | null = null;
   let previousAutopilotState: AutopilotState = 'DISABLED';
 
   const autopilot = new Autopilot(adapter, settings, {
@@ -318,7 +321,9 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
         });
         return true;
       },
-      pause: (reason) => autopilot.pause(reason),
+      pause: (reason) => {
+        if (autopilot.getSnapshot().state !== 'PAUSED') autopilot.pause(reason);
+      },
     },
   );
 
@@ -367,6 +372,11 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     render();
   };
 
+  const cancelNetworkResume = (): void => {
+    if (networkResumeTimer !== null) clearTimeout(networkResumeTimer);
+    networkResumeTimer = null;
+  };
+
   const clearReloadResumeMarker = (): void => {
     void Promise.resolve()
       .then(() => options.storage.setValue(RELOAD_RESUME_KEY, null))
@@ -374,6 +384,8 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
   };
 
   const stopByUser = (): void => {
+    resumeAfterNetwork = false;
+    cancelNetworkResume();
     autopilot.disable();
     recovery.onAutomationDisabled(now());
     clearReloadResumeMarker();
@@ -434,16 +446,59 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
 
   const view = doc.defaultView;
   const handleOffline = (): void => {
+    cancelNetworkResume();
+    const snapshot = autopilot.getSnapshot();
+    resumeAfterNetwork =
+      resumeAfterNetwork ||
+      (snapshot.enabled &&
+        snapshot.state !== 'DISABLED' &&
+        snapshot.state !== 'PAUSED' &&
+        snapshot.state !== 'ERROR');
     recovery.setOnline(false, now());
     render();
   };
   const handleOnline = (): void => {
     recovery.setOnline(true, now());
+    cancelNetworkResume();
+
+    if (resumeAfterNetwork) {
+      networkResumeTimer = setTimeout(() => {
+        networkResumeTimer = null;
+        const snapshot = autopilot.getSnapshot();
+        if (
+          !resumeAfterNetwork ||
+          safeMode ||
+          !snapshot.enabled ||
+          snapshot.state !== 'PAUSED' ||
+          snapshot.pauseReason !== 'network offline'
+        ) {
+          resumeAfterNetwork = false;
+          return;
+        }
+
+        const timestamp = now();
+        recovery.tick(timestamp);
+        if (recovery.getSnapshot().state === 'RECOVERY_WAIT') {
+          render();
+          return;
+        }
+        if (!adapter.isGenerating() && recovery.getSnapshot().generationActive) {
+          recovery.onGenerationFinished(timestamp);
+        }
+
+        autopilot.disable();
+        autopilot.enable();
+        resumeAfterNetwork = false;
+        inspectRecovery();
+        advanceRecovery();
+        render();
+      }, DEFAULT_RECOVERY_SETTINGS.onlineSettleMs);
+    }
     render();
   };
   view?.addEventListener('offline', handleOffline);
   view?.addEventListener('online', handleOnline);
-  if (view && !view.navigator.onLine) recovery.setOnline(false, now());
+  if (view && !view.navigator.onLine) handleOffline();
 
   options.registerMenuCommand('Autopilot: toggle', () => {
     if (safeMode) return;
@@ -475,6 +530,7 @@ export async function bootstrapAutopilot(options: BootstrapOptions): Promise<Aut
     navigator,
     control,
     dispose: () => {
+      cancelNetworkResume();
       clearInterval(recoveryTimer);
       disconnectRecoveryObserver();
       view?.removeEventListener('offline', handleOffline);
