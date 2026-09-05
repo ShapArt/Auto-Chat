@@ -100,6 +100,43 @@ describe('standalone userscript bootstrap', () => {
     runtime.dispose();
   });
 
+  it('does not click retry controls hidden by an ancestor during recovery', async () => {
+    installHtml(errorHtml);
+    const storage = new MemoryStorage();
+    storage.values.set(SETTINGS_KEY, {
+      ...DEFAULT_SETTINGS,
+      watchdogMs: 5_000,
+    });
+    const reload = vi.fn();
+    const hiddenWrapper = document.createElement('div');
+    hiddenWrapper.style.display = 'none';
+    const hiddenRetry = document.createElement('button');
+    hiddenRetry.setAttribute('data-testid', 'retry-button');
+    const onRetry = vi.fn();
+    hiddenRetry.addEventListener('click', onRetry);
+    hiddenWrapper.append(hiddenRetry);
+    document.body.append(hiddenWrapper);
+
+    const runtime = await bootstrapAutopilot({
+      document,
+      storage,
+      registerMenuCommand: vi.fn(),
+      getPath: () => '/c/synthetic-hidden-retry',
+      reload,
+    });
+
+    (document.querySelector('[data-action="toggle"]') as HTMLButtonElement).click();
+    const error = document.querySelector('[data-testid="conversation-turn-error"]') as HTMLElement;
+    error.style.opacity = '0.98';
+    await flushMutations();
+
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(runtime.recovery.getSnapshot().state).toBe('RELOADING');
+
+    runtime.dispose();
+  });
+
   it('restores a fresh same-path reload marker without immediately submitting', async () => {
     const storage = new MemoryStorage();
     storage.values.set(SETTINGS_KEY, {
