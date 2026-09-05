@@ -21,7 +21,17 @@ jobs:
         with:
           name: package-lock
           path: package-lock.json
-      - name: Unit tests
-        run: npm test -- --run
+      - name: Format check
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Unit and integration tests
+        run: npm test -- --run
+      - name: Build standalone userscript
+        run: npm run build
+      - name: Metadata check
+        run: npm run check:metadata
+      - name: Privacy scan
+        run: npm run check:privacy
