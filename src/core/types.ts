@@ -20,4 +20,5 @@ export type AutopilotEvent =
   | { type: 'NEXT_GENERATION_STARTED' }
   | { type: 'MANUAL_INPUT' }
   | { type: 'CONVERSATION_CHANGED' }
+  | { type: 'PAUSE' }
   | { type: 'FAIL' };
