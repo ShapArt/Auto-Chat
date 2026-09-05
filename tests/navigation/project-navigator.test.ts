@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../src/settings/settings';
 import {
   ProjectNavigator,
@@ -57,6 +57,26 @@ describe('ProjectNavigator', () => {
 
     document.body.innerHTML = `<a href="/g/g-p-other/project">Other project</a>`;
     expect(navigator.canRollover(previous)).toBe(false);
+  });
+
+  it('rejects a hidden same-project link instead of clicking stale navigation DOM', async () => {
+    document.body.innerHTML = `<div style="display:none"><a id="hidden-project-home" href="${PROJECT_HOME}">Project</a></div>`;
+    const hiddenLink = document.querySelector('#hidden-project-home') as HTMLAnchorElement;
+    const onClick = vi.fn((event: Event) => event.preventDefault());
+    hiddenLink.addEventListener('click', onClick);
+
+    const session = identity();
+    const navigator = new ProjectNavigator(session, {
+      document,
+      getPath: () => path,
+      waitForNavigation: async (predicate) => predicate(path),
+    });
+    const previous = navigator.captureContext();
+
+    expect(navigator.canRollover(previous)).toBe(false);
+    expect(await navigator.createNewChatInSameProject()).toBe(false);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(session.rolloverIndex).toBe(0);
   });
 
   it('increments rollover index exactly once after confirmed same-project new-chat navigation', async () => {
