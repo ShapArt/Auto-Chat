@@ -27,10 +27,6 @@ export function transition(state: AutopilotState, event: AutopilotEvent): Autopi
     case 'NEXT_GENERATION_STARTED':
       return state === 'COOLDOWN' ? 'GENERATING' : state;
     case 'ENABLE':
-    case 'DISABLE':
-    case 'MANUAL_INPUT':
-    case 'CONVERSATION_CHANGED':
-    case 'FAIL':
       return state;
   }
 }
