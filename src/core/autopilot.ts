@@ -1,5 +1,10 @@
 import { transition } from './state-machine';
 import type { AutopilotState } from './types';
+import {
+  buildContinuationPrompt,
+  createSessionIdentity,
+  type SessionIdentity,
+} from '../navigation/project-navigator';
 import type { AutopilotSettings } from '../settings/settings';
 import { Logger } from '../utils/logger';
 
@@ -20,12 +25,15 @@ export interface AutopilotSnapshot {
   generationEpoch: number;
   submittedEpoch: number;
   successfulTurns: number;
+  sessionId: string;
+  rolloverIndex: number;
 }
 
 export interface AutopilotOptions {
   getConversationKey?: () => string;
   onStateChange?: (snapshot: AutopilotSnapshot) => void;
   logger?: Logger;
+  sessionIdentity?: SessionIdentity;
 }
 
 export class Autopilot {
@@ -45,6 +53,7 @@ export class Autopilot {
   private readonly getConversationKey: () => string;
   private readonly onStateChange: ((snapshot: AutopilotSnapshot) => void) | undefined;
   private readonly logger: Logger;
+  private readonly sessionIdentity: SessionIdentity;
 
   constructor(
     private readonly adapter: AutopilotDomAdapter,
@@ -54,6 +63,7 @@ export class Autopilot {
     this.getConversationKey = options.getConversationKey ?? (() => globalThis.location?.pathname ?? '');
     this.onStateChange = options.onStateChange;
     this.logger = options.logger ?? new Logger(settings.debug);
+    this.sessionIdentity = options.sessionIdentity ?? createSessionIdentity();
   }
 
   start(): void {
@@ -107,6 +117,8 @@ export class Autopilot {
       generationEpoch: this.generationEpoch,
       submittedEpoch: this.submittedEpoch,
       successfulTurns: this.successfulTurns,
+      sessionId: this.sessionIdentity.sessionId,
+      rolloverIndex: this.sessionIdentity.rolloverIndex,
     };
   }
 
@@ -200,10 +212,16 @@ export class Autopilot {
       return;
     }
 
+    const continuationPrompt = buildContinuationPrompt(
+      this.settings,
+      this.successfulTurns,
+      this.sessionIdentity,
+    );
+
     this.submittedEpoch = epoch;
     this.setState(transition(this.state, { type: 'SUBMIT_STARTED' }));
 
-    if (!this.adapter.insertComposerText(this.settings.continuationPrompt)) {
+    if (!this.adapter.insertComposerText(continuationPrompt)) {
       if (!this.adapter.isComposerEmpty()) this.pause('manual input detected');
       else this.fail('continuation insertion failed');
       return;
