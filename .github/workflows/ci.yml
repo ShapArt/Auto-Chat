@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22.x'
+      - name: Use npm 11.6.0
+        run: npm install --global npm@11.6.0 && npm --version
       - name: Install dependencies and generate lockfile
         run: npm install --no-audit --no-fund
       - name: Upload generated lockfile
