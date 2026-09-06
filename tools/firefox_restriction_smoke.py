@@ -5,7 +5,6 @@ import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 
 import firefox_tampermonkey_smoke as base
 
@@ -61,6 +60,53 @@ def scenario_conversation_limit_outside_project(driver: webdriver.Firefox) -> No
             f"conversation-limit outside Project navigated unexpectedly: before={before_url!r} after={after_url!r}"
         )
     base.log(f"conversation-limit scenario PASS: url={after_url!r} stats={stats}")
+
+
+def begin_reconnect_settle(driver: webdriver.Firefox, label: str) -> None:
+    base.open_fresh_target(driver, label)
+    base.install_synthetic_chatgpt_fixture(driver)
+    base.click_auto(driver)
+    base.wait_control_state(driver, "AUTO · armed")
+    driver.execute_script("window.dispatchEvent(new Event('offline')); ")
+    base.wait_control_state(driver, "AUTO · paused", timeout=4)
+    driver.execute_script("window.dispatchEvent(new Event('online')); ")
+
+
+def assert_no_reconnect_mutation(driver: webdriver.Firefox, scenario: str) -> None:
+    time.sleep(2.0)
+    stats = base.smoke_stats(driver)
+    if stats["inputEvents"] != 0 or stats["sendClicks"] != 0:
+        raise AssertionError(f"{scenario} reconnect cancellation mutated/submitted: {stats}")
+
+
+def scenario_stop_cancels_reconnect(driver: webdriver.Firefox) -> None:
+    base.log("scenario: Stop during reconnect settle must prevent auto re-arm")
+    begin_reconnect_settle(driver, "stop-reconnect scenario target")
+    base.click_control_button(driver, "Stop")
+    base.wait_control_state(driver, "AUTO · off", timeout=4)
+    assert_no_reconnect_mutation(driver, "Stop")
+    base.wait_control_state(driver, "AUTO · off", timeout=1)
+    base.log(f"stop-reconnect scenario PASS: {base.smoke_stats(driver)}")
+
+
+def scenario_safe_cancels_reconnect(driver: webdriver.Firefox) -> None:
+    base.log("scenario: Safe Mode during reconnect settle must prevent auto re-arm")
+    begin_reconnect_settle(driver, "safe-reconnect scenario target")
+    base.click_control_button(driver, "Safe")
+    base.wait_control_state(driver, "AUTO · safe mode", timeout=4)
+    assert_no_reconnect_mutation(driver, "Safe Mode")
+    base.wait_control_state(driver, "AUTO · safe mode", timeout=1)
+    base.log(f"safe-reconnect scenario PASS: {base.smoke_stats(driver)}")
+
+
+def scenario_manual_pause_cancels_reconnect(driver: webdriver.Firefox) -> None:
+    base.log("scenario: manual Pause during reconnect settle must not be overridden")
+    begin_reconnect_settle(driver, "manual-pause-reconnect scenario target")
+    base.click_control_button(driver, "Pause")
+    base.wait_control_state(driver, "AUTO · paused", timeout=4)
+    assert_no_reconnect_mutation(driver, "manual Pause")
+    base.wait_control_state(driver, "AUTO · paused", timeout=1)
+    base.log(f"manual-pause-reconnect scenario PASS: {base.smoke_stats(driver)}")
 
 
 def main() -> int:
@@ -131,8 +177,13 @@ def main() -> int:
 
         scenario_usage_limit_pauses(driver)
         scenario_conversation_limit_outside_project(driver)
+        scenario_stop_cancels_reconnect(driver)
+        scenario_safe_cancels_reconnect(driver)
+        scenario_manual_pause_cancels_reconnect(driver)
 
-        base.log("PASS: Auto-Chat failed closed for terminal restriction and non-Project conversation limit.")
+        base.log(
+            "PASS: Auto-Chat failed closed for service/conversation restrictions and reconnect cancellation guards."
+        )
         return 0
     finally:
         base.log("quitting restriction Firefox")
