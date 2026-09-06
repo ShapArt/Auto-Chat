@@ -19,7 +19,7 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
@@ -67,13 +67,21 @@ jobs:
           cat /tmp/autochat-userscript-http.log
           exit 1
 
-      - name: Run headless Firefox + Tampermonkey smoke
+      - name: Run headless Firefox + Tampermonkey behavior smoke
         env:
           PYTHONUNBUFFERED: '1'
           TAMPERMONKEY_XPI: tampermonkey.xpi
           USERSCRIPT_URL: http://127.0.0.1:8765/chatgpt-autopilot.user.js
           TARGET_URL: https://chatgpt.com/
         run: timeout --signal=TERM 90s python -u tools/firefox_tampermonkey_smoke.py
+
+      - name: Run headless Firefox restriction fail-closed smoke
+        env:
+          PYTHONUNBUFFERED: '1'
+          TAMPERMONKEY_XPI: tampermonkey.xpi
+          USERSCRIPT_URL: http://127.0.0.1:8765/chatgpt-autopilot.user.js
+          TARGET_URL: https://chatgpt.com/
+        run: timeout --signal=TERM 90s python -u tools/firefox_restriction_smoke.py
 
       - name: Stop local userscript server
         if: always()
