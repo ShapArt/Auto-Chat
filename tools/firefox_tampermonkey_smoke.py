@@ -341,7 +341,7 @@ def scenario_safe_pending_send(driver: webdriver.Firefox) -> None:
     arm_and_finish_generation(driver)
     WebDriverWait(driver, 6).until(composer_has_text)
     click_control_button(driver, "Safe")
-    wait_control_state(driver, "AUTO · off", timeout=4)
+    wait_control_state(driver, "AUTO · safe mode", timeout=4)
     time.sleep(1.4)
     stats = smoke_stats(driver)
     if stats["sendClicks"] != 0:
