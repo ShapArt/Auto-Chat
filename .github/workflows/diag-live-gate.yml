@@ -23,3 +23,11 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Run diag3 contract test
         run: npm test -- --run tests/diagnostics/live-diagnostics.test.ts
+      - name: Syntax check diagnostic userscript
+        run: node --check tools/chatgpt-autopilot-live-diagnostics.user.js
+      - name: Upload verified diagnostic userscript
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-autopilot-live-diagnostics-diag3
+          path: tools/chatgpt-autopilot-live-diagnostics.user.js
+          if-no-files-found: error
