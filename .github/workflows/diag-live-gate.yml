@@ -1,0 +1,25 @@
+name: Diagnostic live-gate contract
+
+on:
+  push:
+    branches:
+      - diag/live-firefox-smoke
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+      - name: Use npm 11.6.0
+        run: npm install --global npm@11.6.0
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run diag3 contract test
+        run: npm test -- --run tests/diagnostics/live-diagnostics.test.ts
