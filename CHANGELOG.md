@@ -31,8 +31,9 @@ The project follows semantic versioning once releases are published.
 
 ### Validation
 
-- Automated Firefox + Tampermonkey installation/injection/mount smoke now passes against the current `chatgpt.com` page using the exact current build, pinned Tampermonkey 5.5.0, and Firefox 154.0.1 on the GitHub runner.
-- Full signed-in Firefox/Tampermonkey validation of actual generation, continuation submission, recovery, offline handling, and same-project rollover is still pending.
+- Automated Firefox + Tampermonkey installation/injection/mount smoke passes against the current `chatgpt.com` page using the exact current build, pinned Tampermonkey 5.5.0, and Firefox 154.0.1 on the GitHub runner.
+- The same real-browser smoke now also exercises the normal AUTO lifecycle against a synthetic visible-DOM fixture on the real `chatgpt.com` origin: idle enable stays armed without submission, one generation with delayed Send produces exactly one input and one click, an existing manual draft fails closed and remains unsent, and editing a pending continuation pauses before Send with zero clicks.
+- Full signed-in Firefox/Tampermonkey validation of the current live ChatGPT generation UI, recovery, offline handling, and same-project rollover is still pending.
 - v0.1.0 must not be described as stable until the manual checklist in the README / release-gate issue is completed.
 
 ## [0.1.0] - 2026-09-05
