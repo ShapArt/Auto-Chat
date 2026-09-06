@@ -1,0 +1,91 @@
+name: Firefox + Tampermonkey Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - 'rc/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firefox-tampermonkey-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show Firefox availability
+        run: |
+          command -v firefox || true
+          firefox --version || true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      - name: Build exact current userscript
+        run: |
+          npm install --global npm@11.6.0
+          npm ci --no-audit --no-fund
+          npm run build
+          test -s dist/chatgpt-autopilot.user.js
+          sha256sum dist/chatgpt-autopilot.user.js
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Selenium
+        run: python -m pip install --disable-pip-version-check 'selenium==4.48.0'
+
+      - name: Download pinned Tampermonkey 5.5.0 XPI
+        run: |
+          curl --fail --location --retry 3 \
+            'https://addons.mozilla.org/firefox/downloads/file/4797143/tampermonkey-5.5.0.xpi' \
+            --output tampermonkey.xpi
+          echo '190031c78dbc5696114835601f2c8e6b855ad1e134df5df278f8fc158c065908  tampermonkey.xpi' | sha256sum --check --strict
+
+      - name: Serve exact build locally
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 --directory dist >/tmp/autochat-userscript-http.log 2>&1 &
+          echo $! >/tmp/autochat-userscript-http.pid
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8765/chatgpt-autopilot.user.js >/dev/null; then
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat /tmp/autochat-userscript-http.log
+          exit 1
+
+      - name: Run headless Firefox + Tampermonkey behavior smoke
+        env:
+          PYTHONUNBUFFERED: '1'
+          TAMPERMONKEY_XPI: tampermonkey.xpi
+          USERSCRIPT_URL: http://127.0.0.1:8765/chatgpt-autopilot.user.js
+          TARGET_URL: https://chatgpt.com/
+        run: timeout --signal=TERM 90s python -u tools/firefox_tampermonkey_smoke.py
+
+      - name: Run headless Firefox restriction fail-closed smoke
+        env:
+          PYTHONUNBUFFERED: '1'
+          TAMPERMONKEY_XPI: tampermonkey.xpi
+          USERSCRIPT_URL: http://127.0.0.1:8765/chatgpt-autopilot.user.js
+          TARGET_URL: https://chatgpt.com/
+        run: timeout --signal=TERM 90s python -u tools/firefox_restriction_smoke.py
+
+      - name: Stop local userscript server
+        if: always()
+        run: |
+          if [ -f /tmp/autochat-userscript-http.pid ]; then
+            kill "$(cat /tmp/autochat-userscript-http.pid)" 2>/dev/null || true
+          fi
