@@ -30,4 +30,8 @@ describe('live diagnostics recorder contract', () => {
     expect(source).not.toContain('XMLHttpRequest');
     expect(source).not.toContain('WebSocket');
   });
+
+  it('ignores diagnostic panel mutations so rendering cannot self-trigger the observer', () => {
+    expect(source).toContain('root.contains(mutation.target)');
+  });
 });
