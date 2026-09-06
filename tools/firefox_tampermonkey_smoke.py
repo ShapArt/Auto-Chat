@@ -260,16 +260,12 @@ def scenario_one_turn_delayed_send(driver: webdriver.Firefox) -> None:
 
 
 def scenario_manual_draft(driver: webdriver.Firefox) -> None:
-    log("scenario: manual draft must pause and remain unsent")
+    log("scenario: existing manual draft must fail closed on enable and remain unsent")
     open_fresh_target(driver, "manual-draft scenario target")
     install_synthetic_chatgpt_fixture(driver)
     set_manual_composer(driver, "manual draft")
     click_auto(driver)
-    wait_control_state(driver, "AUTO · armed")
-    start_generation(driver)
-    wait_control_state(driver, "AUTO · generating")
-    finish_generation(driver)
-    wait_control_state(driver, "AUTO · paused", timeout=8)
+    wait_control_state(driver, "AUTO · paused", timeout=4)
     time.sleep(0.5)
     stats = smoke_stats(driver)
     composer_text = driver.execute_script(
