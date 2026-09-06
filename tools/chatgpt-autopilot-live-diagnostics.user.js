@@ -71,6 +71,27 @@
     }
   };
 
+  let recording = false;
+  let startedAt = null;
+  let startedAtPerf = 0;
+  let baselineProjectKey = null;
+  let privatePath = location.pathname;
+  let timeline = [];
+  let lastState = null;
+  let sendClicks = 0;
+  let sendClicksWhileSafety = 0;
+  let sendMounts = 0;
+  let generationStarts = 0;
+  let generationEnds = 0;
+  let composerInputEvents = 0;
+  let trustedComposerInputs = 0;
+  let offlineEvents = 0;
+  let onlineEvents = 0;
+  let rolloverEvents = 0;
+  let projectMismatchEvents = 0;
+  let safetyStarts = 0;
+  let safetyEnds = 0;
+
   const getStructuralState = () => {
     const path = location.pathname;
     const composer = document.querySelector(COMPOSER_SELECTOR);
@@ -127,27 +148,6 @@
       sendClicks,
     };
   };
-
-  let recording = false;
-  let startedAt = null;
-  let startedAtPerf = 0;
-  let baselineProjectKey = null;
-  let privatePath = location.pathname;
-  let timeline = [];
-  let lastState = null;
-  let sendClicks = 0;
-  let sendClicksWhileSafety = 0;
-  let sendMounts = 0;
-  let generationStarts = 0;
-  let generationEnds = 0;
-  let composerInputEvents = 0;
-  let trustedComposerInputs = 0;
-  let offlineEvents = 0;
-  let onlineEvents = 0;
-  let rolloverEvents = 0;
-  let projectMismatchEvents = 0;
-  let safetyStarts = 0;
-  let safetyEnds = 0;
 
   const pushEvent = (type, detail = {}) => {
     if (!recording) return;
@@ -461,7 +461,8 @@
   root.append(title, hint, pre, controls);
   document.body.append(root);
 
-  const observer = new MutationObserver(() => {
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.every((mutation) => root.contains(mutation.target))) return;
     sample();
     render();
   });
