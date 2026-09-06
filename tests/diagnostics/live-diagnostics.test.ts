@@ -2,10 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const source = readFileSync(
-  new URL('../../tools/chatgpt-autopilot-live-diagnostics.user.js', import.meta.url),
-  'utf8',
-);
+const source = readFileSync('tools/chatgpt-autopilot-live-diagnostics.user.js', 'utf8');
 
 describe('live diagnostics recorder contract', () => {
   it('exposes diag.3 live-gate recorder controls and sanitized timeline fields', () => {
