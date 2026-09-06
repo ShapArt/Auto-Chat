@@ -12,6 +12,7 @@ The project follows semantic versioning once releases are published.
 - Reload circuit-breaker history restoration across an automated page reload.
 - Structural recovery UI signal classification for visible system alerts/dialogs without parsing assistant message text.
 - `aria-busy="true"` assistant-turn streaming fallback for current ChatGPT DOM variants.
+- Permanent non-required Firefox + Tampermonkey smoke workflow that builds the exact current userscript, installs pinned Tampermonkey in headless Firefox, installs the userscript through Tampermonkey's real install UI, opens `chatgpt.com`, and requires exactly one `AUTO · off` control.
 
 ### Changed
 
@@ -26,11 +27,13 @@ The project follows semantic versioning once releases are published.
 - Same-project rollover now revalidates the pending `[AUTOPILOT_RESUME]` text before clicking Send, so manual edits fail closed instead of being auto-submitted.
 - Network recovery now preserves whether Auto was active before an offline pause and re-arms only after the configured online settle window; Stop, Safe Mode, and manual pause cancel that automatic resume.
 - Same-project rollover proof now ignores project links hidden by `hidden`, `aria-hidden`, `display:none`, or `visibility:hidden`, preventing stale hidden navigation DOM from being clicked.
+- Userscript execution now explicitly uses Tampermonkey `@sandbox DOM`, avoiding unnecessary MAIN_WORLD execution while preserving DOM access and the three declared GM APIs.
 
 ### Validation
 
-- Live Firefox/Tampermonkey validation against the current ChatGPT UI is still pending.
-- v0.1.0 must not be described as stable until the manual checklist in the README is completed.
+- Automated Firefox + Tampermonkey installation/injection/mount smoke now passes against the current `chatgpt.com` page using the exact current build, pinned Tampermonkey 5.5.0, and Firefox 154.0.1 on the GitHub runner.
+- Full signed-in Firefox/Tampermonkey validation of actual generation, continuation submission, recovery, offline handling, and same-project rollover is still pending.
+- v0.1.0 must not be described as stable until the manual checklist in the README / release-gate issue is completed.
 
 ## [0.1.0] - 2026-09-05
 
