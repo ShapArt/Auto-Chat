@@ -2,7 +2,7 @@
 
 Privacy-first Firefox/Tampermonkey userscript for continuing long-running ChatGPT workflows one turn at a time through the visible `chatgpt.com` UI.
 
-> **Status: v0.1.0 MVP.** Automated tests and build checks are in place, but live Firefox/Tampermonkey validation against the current ChatGPT UI is still pending. Treat this branch as a testable MVP, not a stable release.
+> **Status: v0.1.0 MVP.** Automated tests, build checks, and a real Firefox + Tampermonkey installation/behavior smoke are in place, but the full signed-in live checklist against the current ChatGPT UI is still pending. Treat this branch as a release candidate, not a stable release.
 
 ## What it does
 
@@ -38,6 +38,7 @@ The core is deliberately conservative:
 - Offline/online settling and recovery circuit breakers.
 - Standalone `.user.js` bundle with no runtime dependencies.
 - Metadata and committed-fixture privacy checks in CI.
+- Permanent Firefox + Tampermonkey smoke that installs the exact current build through Tampermonkey's real install UI and exercises mount plus key AUTO safety/submit scenarios in a real Firefox engine.
 
 ## What it intentionally does not do
 
@@ -80,6 +81,7 @@ The generated metadata is intentionally narrow:
 ```text
 @match https://chatgpt.com/*
 @run-at document-idle
+@sandbox DOM
 @grant GM_getValue
 @grant GM_setValue
 @grant GM_registerMenuCommand
@@ -200,7 +202,17 @@ src/ui/           floating control
 src/main.ts       runtime wiring and Tampermonkey bootstrap
 scripts/          build, metadata, and privacy gates
 tests/            unit/integration tests and synthetic fixtures
+tools/            real-browser Firefox/Tampermonkey smoke harness
 ```
+
+The Firefox/Tampermonkey smoke builds the exact checked-out userscript, installs pinned Tampermonkey in headless Firefox, installs the userscript through Tampermonkey's real UI, verifies a single `AUTO · off` mount on `chatgpt.com`, and then uses a synthetic visible-DOM fixture on that real origin to exercise:
+
+- idle enable → `armed`, zero submission;
+- one generation with delayed Send → exactly one input and exactly one Send click;
+- existing manual draft on enable → immediate fail-closed pause, draft preserved, zero Send clicks;
+- manual edit during the pending-Send window → pause before Send, zero Send clicks.
+
+This browser smoke does not authenticate to ChatGPT and does not access account/session data.
 
 See the design and implementation plan under `docs/superpowers/` for the detailed safety invariants and rationale.
 
@@ -225,7 +237,9 @@ Before calling v0.1.0 stable, test on a harmless dedicated ChatGPT conversation/
 - contenteditable insertion is accepted by the live ProseMirror composer;
 - no unexpected browser-console errors occur.
 
-Until this checklist has been completed, compatibility should be described as **designed for Firefox/Tampermonkey; live manual validation pending**.
+Automated CI now covers installation, mount, exact-once delayed-Send behavior, and the two key manual-input guards in a real Firefox/Tampermonkey environment. The remaining manual gate is specifically for the current signed-in ChatGPT UI, real Project navigation/recovery surfaces, network transitions, and live ProseMirror acceptance.
+
+Until that checklist has been completed, compatibility should be described as **designed for Firefox/Tampermonkey; automated real-browser smoke green; full signed-in live validation pending**.
 
 ## Security
 
