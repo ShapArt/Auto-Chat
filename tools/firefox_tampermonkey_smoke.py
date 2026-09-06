@@ -91,6 +91,15 @@ def wait_control_state(driver: webdriver.Firefox, expected: str, timeout: float 
         raise AssertionError(f"control state mismatch: expected={expected!r} actual={actual!r}") from exc
 
 
+def click_control_button(driver: webdriver.Firefox, label: str) -> None:
+    control = driver.find_element(By.CSS_SELECTOR, CONTROL_SELECTOR)
+    for button in control.find_elements(By.CSS_SELECTOR, "button"):
+        if (button.text or "").strip() == label:
+            button.click()
+            return
+    raise AssertionError(f"control button not found: {label!r}")
+
+
 def click_auto(driver: webdriver.Firefox) -> None:
     control = driver.find_element(By.CSS_SELECTOR, CONTROL_SELECTOR)
     for button in control.find_elements(By.CSS_SELECTOR, "button"):
@@ -183,6 +192,14 @@ def smoke_stats(driver: webdriver.Firefox) -> dict:
     return driver.execute_script("return {...window.__autochatSmoke};")
 
 
+def composer_has_text(driver: webdriver.Firefox) -> bool:
+    return bool(
+        driver.execute_script(
+            "return (document.querySelector('#autochat-firefox-smoke-fixture #prompt-textarea')?.textContent || '').trim();"
+        )
+    )
+
+
 def set_manual_composer(driver: webdriver.Firefox, text: str) -> None:
     driver.execute_script(
         """
@@ -228,6 +245,14 @@ def finish_generation(driver: webdriver.Firefox) -> None:
     )
 
 
+def arm_and_finish_generation(driver: webdriver.Firefox) -> None:
+    click_auto(driver)
+    wait_control_state(driver, "AUTO · armed")
+    start_generation(driver)
+    wait_control_state(driver, "AUTO · generating")
+    finish_generation(driver)
+
+
 def scenario_idle_enable(driver: webdriver.Firefox) -> None:
     log("scenario: idle enable must arm without submitting")
     open_fresh_target(driver, "idle scenario target")
@@ -245,11 +270,7 @@ def scenario_one_turn_delayed_send(driver: webdriver.Firefox) -> None:
     log("scenario: one generation -> delayed Send -> exactly one submission")
     open_fresh_target(driver, "one-turn scenario target")
     install_synthetic_chatgpt_fixture(driver, send_delay_ms=350)
-    click_auto(driver)
-    wait_control_state(driver, "AUTO · armed")
-    start_generation(driver)
-    wait_control_state(driver, "AUTO · generating")
-    finish_generation(driver)
+    arm_and_finish_generation(driver)
 
     WebDriverWait(driver, 8).until(lambda current: smoke_stats(current)["sendClicks"] == 1)
     time.sleep(0.7)
@@ -280,19 +301,9 @@ def scenario_pending_manual_edit(driver: webdriver.Firefox) -> None:
     log("scenario: edit pending continuation before delayed Send -> pause, no submit")
     open_fresh_target(driver, "pending-edit scenario target")
     install_synthetic_chatgpt_fixture(driver, send_delay_ms=1200)
-    click_auto(driver)
-    wait_control_state(driver, "AUTO · armed")
-    start_generation(driver)
-    wait_control_state(driver, "AUTO · generating")
-    finish_generation(driver)
+    arm_and_finish_generation(driver)
 
-    WebDriverWait(driver, 6).until(
-        lambda current: bool(
-            current.execute_script(
-                "return (document.querySelector('#autochat-firefox-smoke-fixture #prompt-textarea').textContent || '').trim();"
-            )
-        )
-    )
+    WebDriverWait(driver, 6).until(composer_has_text)
     driver.execute_script(
         """
         const composer = document.querySelector('#autochat-firefox-smoke-fixture #prompt-textarea');
@@ -306,6 +317,73 @@ def scenario_pending_manual_edit(driver: webdriver.Firefox) -> None:
     if stats["sendClicks"] != 0:
         raise AssertionError(f"pending manual edit was submitted: {stats}")
     log(f"pending-edit scenario PASS: {stats}")
+
+
+def scenario_stop_pending_send(driver: webdriver.Firefox) -> None:
+    log("scenario: Stop during pending Send must cancel submission")
+    open_fresh_target(driver, "stop-pending scenario target")
+    install_synthetic_chatgpt_fixture(driver, send_delay_ms=1200)
+    arm_and_finish_generation(driver)
+    WebDriverWait(driver, 6).until(composer_has_text)
+    click_control_button(driver, "Stop")
+    wait_control_state(driver, "AUTO · off", timeout=4)
+    time.sleep(1.4)
+    stats = smoke_stats(driver)
+    if stats["sendClicks"] != 0:
+        raise AssertionError(f"Stop failed to cancel pending Send: {stats}")
+    log(f"stop-pending scenario PASS: {stats}")
+
+
+def scenario_safe_pending_send(driver: webdriver.Firefox) -> None:
+    log("scenario: Safe Mode during pending Send must cancel submission")
+    open_fresh_target(driver, "safe-pending scenario target")
+    install_synthetic_chatgpt_fixture(driver, send_delay_ms=1200)
+    arm_and_finish_generation(driver)
+    WebDriverWait(driver, 6).until(composer_has_text)
+    click_control_button(driver, "Safe")
+    wait_control_state(driver, "AUTO · off", timeout=4)
+    time.sleep(1.4)
+    stats = smoke_stats(driver)
+    if stats["sendClicks"] != 0:
+        raise AssertionError(f"Safe Mode failed to cancel pending Send: {stats}")
+    log(f"safe-pending scenario PASS: {stats}")
+
+
+def scenario_navigation_pause(driver: webdriver.Firefox) -> None:
+    log("scenario: conversation path change must pause automation")
+    open_fresh_target(driver, "navigation scenario target")
+    install_synthetic_chatgpt_fixture(driver)
+    click_auto(driver)
+    wait_control_state(driver, "AUTO · armed")
+    driver.execute_script(
+        """
+        history.pushState({}, '', '/c/autochat-smoke-other');
+        const marker = document.createElement('span');
+        marker.textContent = 'navigation-smoke-mutation';
+        document.querySelector('#autochat-firefox-smoke-fixture').append(marker);
+        """
+    )
+    wait_control_state(driver, "AUTO · paused", timeout=4)
+    stats = smoke_stats(driver)
+    if stats["sendClicks"] != 0:
+        raise AssertionError(f"navigation pause unexpectedly submitted: {stats}")
+    log(f"navigation scenario PASS: path={driver.current_url!r} stats={stats}")
+
+
+def scenario_offline_online_resume(driver: webdriver.Firefox) -> None:
+    log("scenario: offline event pauses; online settle safely re-arms")
+    open_fresh_target(driver, "offline-online scenario target")
+    install_synthetic_chatgpt_fixture(driver)
+    click_auto(driver)
+    wait_control_state(driver, "AUTO · armed")
+    driver.execute_script("window.dispatchEvent(new Event('offline')); ")
+    wait_control_state(driver, "AUTO · paused", timeout=4)
+    driver.execute_script("window.dispatchEvent(new Event('online')); ")
+    wait_control_state(driver, "AUTO · armed", timeout=5)
+    stats = smoke_stats(driver)
+    if stats["inputEvents"] != 0 or stats["sendClicks"] != 0:
+        raise AssertionError(f"offline/online settle mutated/submitted unexpectedly: {stats}")
+    log(f"offline-online scenario PASS: {stats}")
 
 
 def main() -> int:
@@ -382,6 +460,10 @@ def main() -> int:
         scenario_one_turn_delayed_send(driver)
         scenario_manual_draft(driver)
         scenario_pending_manual_edit(driver)
+        scenario_stop_pending_send(driver)
+        scenario_safe_pending_send(driver)
+        scenario_navigation_pause(driver)
+        scenario_offline_online_resume(driver)
 
         log(
             "PASS: Tampermonkey installed the current build and Auto-Chat passed mount + browser-level behavior smoke in Firefox."
