@@ -21,13 +21,18 @@ jobs:
         run: npm install --global npm@11.6.0
       - name: Install exact dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run diag5 contract test
-        run: npm test -- --run tests/diagnostics/live-diagnostics.test.ts
-      - name: Syntax check diagnostic userscript
-        run: node --check tools/chatgpt-autopilot-live-diagnostics.user.js
-      - name: Upload verified diagnostic userscript
+      - name: Run diagnostic contract tests
+        run: >-
+          npm test -- --run
+          tests/diagnostics/live-diagnostics.test.ts
+          tests/diagnostics/release-wizard.test.ts
+      - name: Syntax check diagnostic userscripts
+        run: |
+          node --check tools/chatgpt-autopilot-live-diagnostics.user.js
+          node --check tools/chatgpt-autopilot-live-diagnostics-diag6.user.js
+      - name: Upload verified diag6 release wizard
         uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-autopilot-live-diagnostics-diag5
-          path: tools/chatgpt-autopilot-live-diagnostics.user.js
+          name: chatgpt-autopilot-live-diagnostics-diag6
+          path: tools/chatgpt-autopilot-live-diagnostics-diag6.user.js
           if-no-files-found: error
