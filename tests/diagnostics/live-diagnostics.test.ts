@@ -31,6 +31,7 @@ describe('live diagnostics recorder contract', () => {
     expect(source).toContain("'Copy compact verdict'");
     expect(source).toContain('firstGateStatus');
     expect(source).toContain('notExercised');
+    expect(source).toContain('reasons');
     expect(source).toContain('timeline');
     expect(source).toContain('routeKind');
     expect(source).toContain('sameProject');
@@ -79,7 +80,19 @@ describe('live diagnostics recorder contract', () => {
     const root = dom.window.document.getElementById('chatgpt-autopilot-live-diagnostics');
     if (!root) throw new Error('Diagnostic helper did not mount');
 
+    const composer = dom.window.document.getElementById('prompt-textarea');
+    if (!composer) throw new Error('Missing composer');
+    const send = dom.window.document.getElementById('composer-submit-button');
+    if (!(send instanceof dom.window.HTMLButtonElement)) throw new Error('Missing Send');
+
     findButton(root, 'Start live gate').click();
+
+    // Real validation starts with one user Send that triggers the generation under test.
+    composer.textContent = 'manual-start-placeholder';
+    await settleDom();
+    send.click();
+    composer.textContent = '';
+    await settleDom();
 
     const assistant = dom.window.document.createElement('div');
     assistant.setAttribute('data-message-author-role', 'assistant');
@@ -89,17 +102,13 @@ describe('live diagnostics recorder contract', () => {
     assistant.setAttribute('aria-busy', 'false');
     await settleDom();
 
-    const composer = dom.window.document.getElementById('prompt-textarea');
-    if (!composer) throw new Error('Missing composer');
     composer.textContent = 'structural-only-placeholder';
     await settleDom();
-
-    const send = dom.window.document.getElementById('composer-submit-button');
-    if (!(send instanceof dom.window.HTMLButtonElement)) throw new Error('Missing Send');
     send.click();
     await settleDom();
 
     let report = readReport(root);
+    expect(report.counters.sendClicks).toBe(2);
     expect(report.checks.oneTurn).toBe('pass');
     expect(report.checks.safetyHold).toBe('not_exercised');
     expect(report.verdict.status).toBe('incomplete');
@@ -110,12 +119,27 @@ describe('live diagnostics recorder contract', () => {
 
     findButton(root, 'Reset').click();
     dom.window.history.replaceState({}, '', '/c/duplicate-send-test');
+    composer.textContent = '';
+    await settleDom();
     findButton(root, 'Start live gate').click();
+
+    composer.textContent = 'manual-start-placeholder';
+    await settleDom();
+    send.click();
+    composer.textContent = '';
+    await settleDom();
+    assistant.setAttribute('aria-busy', 'true');
+    await settleDom();
+    assistant.setAttribute('aria-busy', 'false');
+    await settleDom();
+    composer.textContent = 'structural-only-placeholder';
+    await settleDom();
     send.click();
     send.click();
     await settleDom();
 
     report = readReport(root);
+    expect(report.counters.sendClicks).toBe(3);
     expect(report.checks.oneTurn).toBe('fail');
     expect(report.verdict.status).toBe('fail');
     expect(report.verdict.firstGateStatus).toBe('fail');
