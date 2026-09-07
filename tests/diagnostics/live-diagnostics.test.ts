@@ -1,5 +1,6 @@
 // @ts-expect-error Node built-in intentionally used by Vitest runtime only.
 import { readFileSync } from 'node:fs';
+// @ts-expect-error jsdom is an existing runtime devDependency without bundled declarations.
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 
