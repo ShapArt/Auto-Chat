@@ -79,8 +79,12 @@
     const composer = document.querySelector(COMPOSER_SELECTOR);
     const send = document.querySelector(SEND_SELECTOR);
     const stop = document.querySelector(STOP_SELECTOR);
-    const busy = [...document.querySelectorAll('[data-message-author-role="assistant"][aria-busy="true"]')].filter(visible).length;
-    const safety = [...document.querySelectorAll('[data-streaming-response-status]')].filter(visible).length;
+    const busy = [
+      ...document.querySelectorAll('[data-message-author-role="assistant"][aria-busy="true"]'),
+    ].filter(visible).length;
+    const safety = [...document.querySelectorAll('[data-streaming-response-status]')].filter(
+      visible,
+    ).length;
     return {
       diagVersion: '0.1.0-diag.6',
       routeKind: routeKind(location.pathname),
@@ -123,7 +127,11 @@
 
   const push = (type, detail = {}) => {
     if (!recording) return;
-    timeline.push({ tMs: Math.max(0, Math.round(performance.now() - startedPerf)), type, ...detail });
+    timeline.push({
+      tMs: Math.max(0, Math.round(performance.now() - startedPerf)),
+      type,
+      ...detail,
+    });
     if (timeline.length > 300) timeline = timeline.slice(-300);
   };
 
@@ -151,11 +159,8 @@
   const evaluateChecks = () => {
     const generationStart = indexes('generation_start')[0] ?? -1;
     const generationEnd = indexes('generation_end', generationStart)[0] ?? -1;
-    const composerFilled = indexes(
-      'composer_state',
-      generationEnd,
-      (entry) => entry.nonEmpty === true,
-    )[0] ?? -1;
+    const composerFilled =
+      indexes('composer_state', generationEnd, (entry) => entry.nonEmpty === true)[0] ?? -1;
     const continuationSends = indexes('send_click', composerFilled);
     let oneTurn = 'not_exercised';
     if (generationStart >= 0 && generationEnd >= 0 && composerFilled >= 0) {
@@ -166,11 +171,13 @@
     const manualInput = indexes('composer_input', -1, (entry) => entry.trusted === true)[0] ?? -1;
     let manualProtection = 'not_exercised';
     if (manualInput >= 0) {
-      const paused = indexes(
-        'auto_state',
-        manualInput,
-        (entry) => typeof entry.state === 'string' && entry.state.toLowerCase().includes('paused'),
-      )[0] ?? -1;
+      const paused =
+        indexes(
+          'auto_state',
+          manualInput,
+          (entry) =>
+            typeof entry.state === 'string' && entry.state.toLowerCase().includes('paused'),
+        )[0] ?? -1;
       const laterSend = indexes('send_click', manualInput)[0] ?? -1;
       if (laterSend >= 0) manualProtection = 'fail';
       else if (paused >= 0) manualProtection = 'pass';
@@ -180,11 +187,12 @@
     const online = indexes('network_online', offline)[0] ?? -1;
     let reconnect = 'not_exercised';
     if (offline >= 0 && online >= 0) {
-      const armed = indexes(
-        'auto_state',
-        online,
-        (entry) => typeof entry.state === 'string' && entry.state.toLowerCase().includes('armed'),
-      )[0] ?? -1;
+      const armed =
+        indexes(
+          'auto_state',
+          online,
+          (entry) => typeof entry.state === 'string' && entry.state.toLowerCase().includes('armed'),
+        )[0] ?? -1;
       if (armed >= 0) reconnect = 'pass';
     }
 
@@ -381,8 +389,7 @@
   let lastReport;
   const render = () => {
     lastReport = buildReport();
-    releaseBanner.textContent =
-      `RELEASE GATE: ${lastReport.releaseGate.status.toUpperCase()} · ${lastReport.releaseGate.currentLabel}`;
+    releaseBanner.textContent = `RELEASE GATE: ${lastReport.releaseGate.status.toUpperCase()} · ${lastReport.releaseGate.currentLabel}`;
     nextStep.textContent = `NEXT: ${lastReport.releaseGate.instruction}`;
     pre.textContent = JSON.stringify(lastReport, null, 2);
   };
