@@ -22,14 +22,29 @@ const readReport = (root: Element) => {
   return JSON.parse(pre.textContent || '{}');
 };
 
+const readNextStep = (root: Element) => {
+  const next = root.querySelector('[data-first-gate-next-step]');
+  if (!next) throw new Error('Missing first-gate next step');
+  return next.textContent || '';
+};
+
+const readFirstGateBanner = (root: Element) => {
+  const banner = root.querySelector('[data-first-gate-banner]');
+  if (!banner) throw new Error('Missing first-gate banner');
+  return banner.textContent || '';
+};
+
 describe('live diagnostics recorder contract', () => {
-  it('exposes diag.4 verdict controls and sanitized timeline fields', () => {
-    expect(source).toContain('@version      0.1.0-diag.4');
-    expect(source).toContain("diagVersion: '0.1.0-diag.4'");
+  it('exposes diag.5 guided first-gate controls and sanitized timeline fields', () => {
+    expect(source).toContain('@version      0.1.0-diag.5');
+    expect(source).toContain("diagVersion: '0.1.0-diag.5'");
     expect(source).toContain("'Start live gate'");
     expect(source).toContain("'Reset'");
+    expect(source).toContain("'Copy first-gate report'");
     expect(source).toContain("'Copy report'");
     expect(source).toContain("'Copy compact verdict'");
+    expect(source).toContain('buildFirstGate');
+    expect(source).toContain('buildFirstGateReport');
     expect(source).toContain('firstGateStatus');
     expect(source).toContain('notExercised');
     expect(source).toContain('reasons');
@@ -57,7 +72,7 @@ describe('live diagnostics recorder contract', () => {
     expect(source).toContain('root.contains(mutation.target)');
   });
 
-  it('classifies exercised live-gate scenarios without treating untouched groups as failures', async () => {
+  it('guides the first live turn and reports pass without exposing chat text', async () => {
     const dom = new JSDOM(
       `<!doctype html><html><body>
         <div id="chatgpt-autopilot-control"><button type="button">AUTO · armed</button></div>
@@ -81,14 +96,18 @@ describe('live diagnostics recorder contract', () => {
     const root = dom.window.document.getElementById('chatgpt-autopilot-live-diagnostics');
     if (!root) throw new Error('Diagnostic helper did not mount');
 
+    expect(readFirstGateBanner(root)).toContain('WAITING');
+    expect(readNextStep(root)).toContain('Start live gate');
+    expect(root.querySelector('details')?.hasAttribute('open')).toBe(false);
+
     const composer = dom.window.document.getElementById('prompt-textarea');
     if (!composer) throw new Error('Missing composer');
     const send = dom.window.document.getElementById('composer-submit-button');
     if (!(send instanceof dom.window.HTMLButtonElement)) throw new Error('Missing Send');
 
     findButton(root, 'Start live gate').click();
+    expect(readNextStep(root)).toContain('Send');
 
-    // Real validation starts with one user Send that triggers the generation under test.
     composer.textContent = 'manual-start-placeholder';
     await settleDom();
     send.click();
@@ -100,8 +119,11 @@ describe('live diagnostics recorder contract', () => {
     assistant.setAttribute('aria-busy', 'true');
     dom.window.document.body.append(assistant);
     await settleDom();
+    expect(readNextStep(root)).toContain('generation');
+
     assistant.setAttribute('aria-busy', 'false');
     await settleDom();
+    expect(readNextStep(root)).toContain('Auto');
 
     composer.textContent = 'structural-only-placeholder';
     await settleDom();
@@ -109,14 +131,15 @@ describe('live diagnostics recorder contract', () => {
     await settleDom();
 
     let report = readReport(root);
+    expect(report.diagVersion).toBe('0.1.0-diag.5');
     expect(report.counters.sendClicks).toBe(2);
     expect(report.checks.oneTurn).toBe('pass');
-    expect(report.checks.safetyHold).toBe('not_exercised');
-    expect(report.verdict.status).toBe('incomplete');
+    expect(report.firstGate.status).toBe('pass');
+    expect(report.firstGate.step).toBe('complete');
+    expect(report.firstGate.reason).toBeNull();
     expect(report.verdict.firstGateStatus).toBe('pass');
-    expect(report.verdict.passed).toContain('oneTurn');
-    expect(report.verdict.notExercised).toContain('safetyHold');
-    expect(report.verdict.failed).toEqual([]);
+    expect(readFirstGateBanner(root)).toContain('PASS');
+    expect(findButton(root, 'Copy first-gate report')).toBeTruthy();
 
     findButton(root, 'Reset').click();
     dom.window.history.replaceState({}, '', '/c/duplicate-send-test');
@@ -142,9 +165,10 @@ describe('live diagnostics recorder contract', () => {
     report = readReport(root);
     expect(report.counters.sendClicks).toBe(3);
     expect(report.checks.oneTurn).toBe('fail');
-    expect(report.verdict.status).toBe('fail');
+    expect(report.firstGate.status).toBe('fail');
+    expect(report.firstGate.reason).toBe('duplicate_continuation_send');
     expect(report.verdict.firstGateStatus).toBe('fail');
-    expect(report.verdict.failed).toContain('oneTurn');
+    expect(readFirstGateBanner(root)).toContain('FAIL');
 
     findButton(root, 'Reset').click();
     dom.window.history.replaceState({}, '', '/g/g-p-alpha/c/first');
