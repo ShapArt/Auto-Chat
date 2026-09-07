@@ -8,6 +8,7 @@ export default tseslint.config(
       'coverage/**',
       'node_modules/**',
       'tools/chatgpt-autopilot-live-diagnostics.user.js',
+      'tools/chatgpt-autopilot-live-diagnostics-diag6.user.js',
     ],
   },
   js.configs.recommended,
