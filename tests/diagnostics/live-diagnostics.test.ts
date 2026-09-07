@@ -63,6 +63,10 @@ describe('live diagnostics recorder contract', () => {
       <button id="composer-submit-button" type="button">Send</button>
     `;
     window.history.replaceState({}, '', '/c/live-gate-test');
+    Object.defineProperty(globalThis, 'location', {
+      configurable: true,
+      value: window.location,
+    });
     Object.assign(window, {
       GM_getValue: () => undefined,
       GM_setValue: () => undefined,
