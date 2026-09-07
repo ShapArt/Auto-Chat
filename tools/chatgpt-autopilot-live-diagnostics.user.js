@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT Autopilot Live Diagnostics
 // @namespace    https://github.com/ShapArt/Auto-Chat
-// @version      0.1.0-diag.4
-// @description  Read-only structural recorder for Auto-Chat live Firefox/Tampermonkey release validation.
+// @version      0.1.0-diag.5
+// @description  Guided read-only structural recorder for Auto-Chat live Firefox/Tampermonkey release validation.
 // @match        https://chatgpt.com/*
 // @run-at       document-idle
 // @sandbox      DOM
@@ -27,6 +27,15 @@
     'sameProjectRollover',
     'safetyHold',
   ];
+  const FIRST_GATE_EVENT_TYPES = new Set([
+    'live_gate_start',
+    'auto_state',
+    'generation_start',
+    'generation_end',
+    'composer_state',
+    'composer_input',
+    'send_click',
+  ]);
 
   const existingRoot = document.getElementById(ROOT_ID);
   if (existingRoot) existingRoot.remove();
@@ -118,7 +127,7 @@
     const currentProjectKey = getProjectKey(path);
 
     return {
-      diagVersion: '0.1.0-diag.4',
+      diagVersion: '0.1.0-diag.5',
       timestamp: new Date().toISOString(),
       routeKind: getRouteKind(path),
       sameProject:
@@ -196,7 +205,7 @@
       return indexes;
     }, []);
 
-  const evaluateChecks = () => {
+  const getOneTurnProgress = () => {
     const generationStartIndex = eventIndex('generation_start');
     const generationEndIndex = eventIndexAfter('generation_end', generationStartIndex);
     const composerFilledIndex = eventIndexAfter(
@@ -205,6 +214,22 @@
       (entry) => entry.nonEmpty === true,
     );
     const continuationSendIndexes = eventIndexesAfter('send_click', composerFilledIndex);
+
+    return {
+      generationStartIndex,
+      generationEndIndex,
+      composerFilledIndex,
+      continuationSendIndexes,
+    };
+  };
+
+  const evaluateChecks = () => {
+    const {
+      generationStartIndex,
+      generationEndIndex,
+      composerFilledIndex,
+      continuationSendIndexes,
+    } = getOneTurnProgress();
 
     let oneTurn = 'not_exercised';
     if (
@@ -306,22 +331,162 @@
     safetyEnds,
   });
 
-  const buildReport = () => {
-    const checks = evaluateChecks();
+  const buildFirstGate = (checks, snapshot) => {
+    if (!recording) {
+      return {
+        status: 'waiting',
+        step: 'start',
+        instruction: 'Start live gate, then run one harmless real ChatGPT turn.',
+        reason: null,
+      };
+    }
+
+    if (checks.oneTurn === 'fail') {
+      return {
+        status: 'fail',
+        step: 'failed',
+        instruction: 'Stop here and copy the first-gate report for debugging.',
+        reason: 'duplicate_continuation_send',
+      };
+    }
+
+    if (checks.oneTurn === 'pass') {
+      return {
+        status: 'pass',
+        step: 'complete',
+        instruction: 'First live turn passed. Copy the first-gate report.',
+        reason: null,
+      };
+    }
+
+    if (!snapshot.coreControlPresent) {
+      return {
+        status: 'waiting',
+        step: 'await_core',
+        instruction: 'Wait for the Auto-Chat control to appear. Do not change selectors yet.',
+        reason: null,
+      };
+    }
+
+    if (!snapshot.composerPresent || !snapshot.composerVisible) {
+      return {
+        status: 'waiting',
+        step: 'await_composer',
+        instruction: 'Open a normal signed-in ChatGPT conversation with a visible composer.',
+        reason: null,
+      };
+    }
+
+    const autoState = (snapshot.autoState || '').toLowerCase();
+    if (
+      !autoState ||
+      autoState.includes('off') ||
+      autoState.includes('paused') ||
+      autoState.includes('safe mode')
+    ) {
+      return {
+        status: 'waiting',
+        step: 'enable_auto',
+        instruction: 'Enable Auto-Chat. The helper will not click or type anything for you.',
+        reason: null,
+      };
+    }
+
+    const {
+      generationStartIndex,
+      generationEndIndex,
+      composerFilledIndex,
+      continuationSendIndexes,
+    } = getOneTurnProgress();
+
+    if (generationStartIndex < 0) {
+      return {
+        status: 'waiting',
+        step: 'send_prompt',
+        instruction: 'Send one harmless prompt manually and keep this panel open.',
+        reason: null,
+      };
+    }
+
+    if (generationEndIndex < 0) {
+      return {
+        status: 'waiting',
+        step: 'wait_generation',
+        instruction: 'Wait: generation is running. Do not type into the composer.',
+        reason: null,
+      };
+    }
+
+    if (composerFilledIndex < 0) {
+      return {
+        status: 'waiting',
+        step: 'wait_auto_insert',
+        instruction: 'Generation ended. Wait for Auto to insert exactly one continuation.',
+        reason: null,
+      };
+    }
+
+    if (continuationSendIndexes.length === 0) {
+      return {
+        status: 'waiting',
+        step: 'wait_auto_send',
+        instruction: 'Auto inserted a continuation. Wait for exactly one automatic Send.',
+        reason: null,
+      };
+    }
+
     return {
-      diagVersion: '0.1.0-diag.4',
+      status: 'waiting',
+      step: 'evaluate',
+      instruction: 'Evaluating the first live turn.',
+      reason: null,
+    };
+  };
+
+  const buildReport = () => {
+    const snapshot = getStructuralState();
+    const checks = evaluateChecks();
+    const firstGate = buildFirstGate(checks, snapshot);
+    return {
+      diagVersion: '0.1.0-diag.5',
       recording,
       startedAt,
-      snapshot: getStructuralState(),
+      snapshot,
       counters: buildCounters(),
       checks,
+      firstGate,
       verdict: buildVerdict(checks),
       timeline: [...timeline],
     };
   };
 
+  const buildFirstGateReport = (report) => ({
+    diagVersion: report.diagVersion,
+    startedAt: report.startedAt,
+    firstGate: report.firstGate,
+    oneTurn: report.checks.oneTurn,
+    counters: {
+      sendClicks: report.counters.sendClicks,
+      generationStarts: report.counters.generationStarts,
+      generationEnds: report.counters.generationEnds,
+      composerInputEvents: report.counters.composerInputEvents,
+      trustedComposerInputs: report.counters.trustedComposerInputs,
+    },
+    snapshot: {
+      coreControlPresent: report.snapshot.coreControlPresent,
+      autoState: report.snapshot.autoState,
+      composerPresent: report.snapshot.composerPresent,
+      composerVisible: report.snapshot.composerVisible,
+      sendPresent: report.snapshot.sendPresent,
+      sendVisible: report.snapshot.sendVisible,
+      generating: report.snapshot.generating,
+    },
+    timeline: report.timeline.filter((entry) => FIRST_GATE_EVENT_TYPES.has(entry.type)),
+  });
+
   const buildCompactVerdict = (report) => ({
     diagVersion: report.diagVersion,
+    firstGate: report.firstGate,
     verdict: report.verdict,
     checks: report.checks,
     counters: report.counters,
@@ -448,7 +613,7 @@
   ].join(';');
 
   const title = document.createElement('div');
-  title.textContent = 'AUTO-CHAT LIVE GATE · DIAG.4 · READ ONLY';
+  title.textContent = 'AUTO-CHAT LIVE GATE · DIAG.5 · READ ONLY';
   title.style.cssText = 'font-weight:800;margin-bottom:8px;color:#ffcc66';
 
   const hint = document.createElement('div');
@@ -456,12 +621,28 @@
     'Записывает только структурные события: состояния Auto/DOM, boolean composer empty/non-empty, Send/Stop, сеть, safety и тип маршрута. Текст сообщений, URL/ID проекта и аккаунтные данные в отчёт не попадают.';
   hint.style.cssText = 'margin-bottom:8px;white-space:normal';
 
+  const firstGateBanner = document.createElement('div');
+  firstGateBanner.setAttribute('data-first-gate-banner', 'true');
+  firstGateBanner.style.cssText =
+    'margin:8px 0 4px;padding:10px 11px;border:2px solid #777;border-radius:9px;font-size:14px;font-weight:900;white-space:normal';
+
+  const nextStep = document.createElement('div');
+  nextStep.setAttribute('data-first-gate-next-step', 'true');
+  nextStep.style.cssText =
+    'margin:0 0 8px;padding:8px 10px;border:1px solid #555;border-radius:8px;white-space:normal';
+
   const verdictBanner = document.createElement('div');
   verdictBanner.style.cssText =
     'margin:8px 0;padding:7px 9px;border:1px solid #666;border-radius:8px;font-weight:700;white-space:normal';
 
+  const details = document.createElement('details');
+  details.style.cssText = 'margin-top:8px';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Full structural report';
+  summary.style.cssText = 'cursor:pointer;font-weight:700';
   const pre = document.createElement('pre');
-  pre.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-word';
+  pre.style.cssText = 'margin:8px 0 0;white-space:pre-wrap;word-break:break-word';
+  details.append(summary, pre);
 
   const controls = document.createElement('div');
   controls.style.cssText = 'display:flex;gap:6px;margin-top:10px;flex-wrap:wrap';
@@ -476,10 +657,28 @@
     return button;
   };
 
+  const copyJson = async (button, value, successLabel, resetLabel, consoleLabel) => {
+    const text = JSON.stringify(value, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = successLabel;
+      setTimeout(() => (button.textContent = resetLabel), 1200);
+    } catch {
+      console.log(consoleLabel, text);
+      button.textContent = 'Copy failed → console';
+      setTimeout(() => (button.textContent = resetLabel), 1600);
+    }
+  };
+
   let lastReport = buildReport();
   const render = () => {
     lastReport = buildReport();
     const verdict = lastReport.verdict;
+    const firstGate = lastReport.firstGate;
+    firstGateBanner.textContent =
+      `FIRST LIVE TURN: ${firstGate.status.toUpperCase()} · ${firstGate.step.toUpperCase()}` +
+      (firstGate.reason ? ` · ${firstGate.reason}` : '');
+    nextStep.textContent = `NEXT: ${firstGate.instruction}`;
     verdictBanner.textContent =
       `LIVE GATE: ${verdict.status.toUpperCase()} · FIRST TURN: ${verdict.firstGateStatus.toUpperCase()} · ` +
       `passed ${verdict.passed.length} · failed ${verdict.failed.length} · not exercised ${verdict.notExercised.length}`;
@@ -496,34 +695,40 @@
     render();
   });
 
+  const copyFirstGate = makeButton('Copy first-gate report', async () => {
+    sample();
+    lastReport = buildReport();
+    await copyJson(
+      copyFirstGate,
+      buildFirstGateReport(lastReport),
+      'Copied first-gate report',
+      'Copy first-gate report',
+      '[AUTO-CHAT FIRST LIVE GATE]',
+    );
+  });
+
   const copy = makeButton('Copy report', async () => {
     sample();
     lastReport = buildReport();
-    const text = JSON.stringify(lastReport, null, 2);
-    try {
-      await navigator.clipboard.writeText(text);
-      copy.textContent = 'Copied';
-      setTimeout(() => (copy.textContent = 'Copy report'), 1200);
-    } catch {
-      console.log('[AUTO-CHAT LIVE GATE]', text);
-      copy.textContent = 'Copy failed → console';
-      setTimeout(() => (copy.textContent = 'Copy report'), 1600);
-    }
+    await copyJson(
+      copy,
+      lastReport,
+      'Copied',
+      'Copy report',
+      '[AUTO-CHAT LIVE GATE]',
+    );
   });
 
   const copyCompact = makeButton('Copy compact verdict', async () => {
     sample();
     lastReport = buildReport();
-    const text = JSON.stringify(buildCompactVerdict(lastReport), null, 2);
-    try {
-      await navigator.clipboard.writeText(text);
-      copyCompact.textContent = 'Copied compact verdict';
-      setTimeout(() => (copyCompact.textContent = 'Copy compact verdict'), 1200);
-    } catch {
-      console.log('[AUTO-CHAT LIVE GATE VERDICT]', text);
-      copyCompact.textContent = 'Copy failed → console';
-      setTimeout(() => (copyCompact.textContent = 'Copy compact verdict'), 1600);
-    }
+    await copyJson(
+      copyCompact,
+      buildCompactVerdict(lastReport),
+      'Copied compact verdict',
+      'Copy compact verdict',
+      '[AUTO-CHAT LIVE GATE VERDICT]',
+    );
   });
 
   let closed = false;
@@ -533,8 +738,8 @@
     root.remove();
   });
 
-  controls.append(start, reset, copy, copyCompact, close);
-  root.append(title, hint, verdictBanner, pre, controls);
+  controls.append(start, reset, copyFirstGate, copy, copyCompact, close);
+  root.append(title, hint, firstGateBanner, nextStep, verdictBanner, details, controls);
   document.body.append(root);
 
   const observer = new MutationObserver((mutations) => {
