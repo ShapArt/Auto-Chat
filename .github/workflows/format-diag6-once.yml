@@ -1,0 +1,33 @@
+name: Format diag6 once
+
+on:
+  push:
+    branches:
+      - diag/live-firefox-smoke
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+      - name: Use npm 11.6.0
+        run: npm install --global npm@11.6.0
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Format diag6 with repository Prettier
+        run: npx prettier --write tools/chatgpt-autopilot-live-diagnostics-diag6.user.js
+      - name: Syntax check formatted helper
+        run: node --check tools/chatgpt-autopilot-live-diagnostics-diag6.user.js
+      - name: Upload formatted diag6
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-diag6
+          path: tools/chatgpt-autopilot-live-diagnostics-diag6.user.js
+          if-no-files-found: error
