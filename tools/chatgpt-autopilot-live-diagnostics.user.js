@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Autopilot Live Diagnostics
 // @namespace    https://github.com/ShapArt/Auto-Chat
-// @version      0.1.0-diag.3
+// @version      0.1.0-diag.4
 // @description  Read-only structural recorder for Auto-Chat live Firefox/Tampermonkey release validation.
 // @match        https://chatgpt.com/*
 // @run-at       document-idle
@@ -20,6 +20,13 @@
   const STOP_SELECTOR = 'button[data-testid="stop-button"]';
   const COMPOSER_SELECTOR = '#prompt-textarea';
   const MAX_TIMELINE_EVENTS = 500;
+  const CHECK_NAMES = [
+    'oneTurn',
+    'manualProtection',
+    'reconnect',
+    'sameProjectRollover',
+    'safetyHold',
+  ];
 
   const existingRoot = document.getElementById(ROOT_ID);
   if (existingRoot) existingRoot.remove();
@@ -111,7 +118,7 @@
     const currentProjectKey = getProjectKey(path);
 
     return {
-      diagVersion: '0.1.0-diag.3',
+      diagVersion: '0.1.0-diag.4',
       timestamp: new Date().toISOString(),
       routeKind: getRouteKind(path),
       sameProject:
@@ -183,6 +190,12 @@
       (entry, index) => index > afterIndex && entry.type === type && predicate(entry),
     );
 
+  const eventIndexesAfter = (type, afterIndex, predicate = () => true) =>
+    timeline.reduce((indexes, entry, index) => {
+      if (index > afterIndex && entry.type === type && predicate(entry)) indexes.push(index);
+      return indexes;
+    }, []);
+
   const evaluateChecks = () => {
     const generationStartIndex = eventIndex('generation_start');
     const generationEndIndex = eventIndexAfter('generation_end', generationStartIndex);
@@ -191,16 +204,21 @@
       generationEndIndex,
       (entry) => entry.nonEmpty === true,
     );
-    const sendClickIndex = eventIndexAfter('send_click', composerFilledIndex);
+    const continuationSendIndexes = eventIndexesAfter('send_click', composerFilledIndex);
 
-    let oneTurn = 'pending';
-    if (sendClicks > 1) oneTurn = 'fail';
-    else if (
+    let oneTurn = 'not_exercised';
+    if (
       generationStartIndex >= 0 &&
       generationEndIndex >= 0 &&
       composerFilledIndex >= 0 &&
-      sendClickIndex >= 0 &&
-      sendClicks === 1
+      continuationSendIndexes.length > 1
+    ) {
+      oneTurn = 'fail';
+    } else if (
+      generationStartIndex >= 0 &&
+      generationEndIndex >= 0 &&
+      composerFilledIndex >= 0 &&
+      continuationSendIndexes.length === 1
     ) {
       oneTurn = 'pass';
     }
@@ -209,7 +227,7 @@
       'composer_input',
       (entry) => entry.trusted === true,
     );
-    let manualProtection = 'pending';
+    let manualProtection = 'not_exercised';
     if (trustedInputIndex >= 0) {
       const pauseIndex = eventIndexAfter(
         'auto_state',
@@ -221,7 +239,7 @@
       else if (pauseIndex >= 0) manualProtection = 'pass';
     }
 
-    let reconnect = 'pending';
+    let reconnect = 'not_exercised';
     const offlineIndex = eventIndex('network_offline');
     const onlineIndex = eventIndexAfter('network_online', offlineIndex);
     if (offlineIndex >= 0 && onlineIndex >= 0) {
@@ -233,11 +251,11 @@
       if (rearmIndex >= 0) reconnect = 'pass';
     }
 
-    let sameProjectRollover = 'pending';
+    let sameProjectRollover = 'not_exercised';
     if (projectMismatchEvents > 0) sameProjectRollover = 'fail';
     else if (rolloverEvents > 0) sameProjectRollover = 'pass';
 
-    let safetyHold = 'pending';
+    let safetyHold = 'not_exercised';
     if (sendClicksWhileSafety > 0) safetyHold = 'fail';
     else if (safetyStarts > 0 && safetyEnds > 0) safetyHold = 'pass';
 
@@ -250,28 +268,63 @@
     };
   };
 
-  const buildReport = () => ({
-    diagVersion: '0.1.0-diag.3',
-    recording,
-    startedAt,
-    snapshot: getStructuralState(),
-    counters: {
-      sendClicks,
-      sendClicksWhileSafety,
-      sendMounts,
-      generationStarts,
-      generationEnds,
-      composerInputEvents,
-      trustedComposerInputs,
-      offlineEvents,
-      onlineEvents,
-      rolloverEvents,
-      projectMismatchEvents,
-      safetyStarts,
-      safetyEnds,
-    },
-    checks: evaluateChecks(),
-    timeline: [...timeline],
+  const buildVerdict = (checks) => {
+    const passed = CHECK_NAMES.filter((name) => checks[name] === 'pass');
+    const failed = CHECK_NAMES.filter((name) => checks[name] === 'fail');
+    const notExercised = CHECK_NAMES.filter((name) => checks[name] === 'not_exercised');
+    const status = failed.length > 0 ? 'fail' : notExercised.length > 0 ? 'incomplete' : 'pass';
+    const firstGateStatus =
+      checks.oneTurn === 'pass' ? 'pass' : checks.oneTurn === 'fail' ? 'fail' : 'incomplete';
+    const reasons = [
+      ...failed.map((name) => `failed:${name}`),
+      ...notExercised.map((name) => `not_exercised:${name}`),
+    ];
+
+    return {
+      status,
+      firstGateStatus,
+      passed,
+      failed,
+      notExercised,
+      reasons,
+    };
+  };
+
+  const buildCounters = () => ({
+    sendClicks,
+    sendClicksWhileSafety,
+    sendMounts,
+    generationStarts,
+    generationEnds,
+    composerInputEvents,
+    trustedComposerInputs,
+    offlineEvents,
+    onlineEvents,
+    rolloverEvents,
+    projectMismatchEvents,
+    safetyStarts,
+    safetyEnds,
+  });
+
+  const buildReport = () => {
+    const checks = evaluateChecks();
+    return {
+      diagVersion: '0.1.0-diag.4',
+      recording,
+      startedAt,
+      snapshot: getStructuralState(),
+      counters: buildCounters(),
+      checks,
+      verdict: buildVerdict(checks),
+      timeline: [...timeline],
+    };
+  };
+
+  const buildCompactVerdict = (report) => ({
+    diagVersion: report.diagVersion,
+    verdict: report.verdict,
+    checks: report.checks,
+    counters: report.counters,
   });
 
   const sample = () => {
@@ -395,13 +448,17 @@
   ].join(';');
 
   const title = document.createElement('div');
-  title.textContent = 'AUTO-CHAT LIVE GATE · DIAG.3 · READ ONLY';
+  title.textContent = 'AUTO-CHAT LIVE GATE · DIAG.4 · READ ONLY';
   title.style.cssText = 'font-weight:800;margin-bottom:8px;color:#ffcc66';
 
   const hint = document.createElement('div');
   hint.textContent =
     'Записывает только структурные события: состояния Auto/DOM, boolean composer empty/non-empty, Send/Stop, сеть, safety и тип маршрута. Текст сообщений, URL/ID проекта и аккаунтные данные в отчёт не попадают.';
   hint.style.cssText = 'margin-bottom:8px;white-space:normal';
+
+  const verdictBanner = document.createElement('div');
+  verdictBanner.style.cssText =
+    'margin:8px 0;padding:7px 9px;border:1px solid #666;border-radius:8px;font-weight:700;white-space:normal';
 
   const pre = document.createElement('pre');
   pre.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-word';
@@ -422,6 +479,10 @@
   let lastReport = buildReport();
   const render = () => {
     lastReport = buildReport();
+    const verdict = lastReport.verdict;
+    verdictBanner.textContent =
+      `LIVE GATE: ${verdict.status.toUpperCase()} · FIRST TURN: ${verdict.firstGateStatus.toUpperCase()} · ` +
+      `passed ${verdict.passed.length} · failed ${verdict.failed.length} · not exercised ${verdict.notExercised.length}`;
     pre.textContent = JSON.stringify(lastReport, null, 2);
   };
 
@@ -450,6 +511,21 @@
     }
   });
 
+  const copyCompact = makeButton('Copy compact verdict', async () => {
+    sample();
+    lastReport = buildReport();
+    const text = JSON.stringify(buildCompactVerdict(lastReport), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      copyCompact.textContent = 'Copied compact verdict';
+      setTimeout(() => (copyCompact.textContent = 'Copy compact verdict'), 1200);
+    } catch {
+      console.log('[AUTO-CHAT LIVE GATE VERDICT]', text);
+      copyCompact.textContent = 'Copy failed → console';
+      setTimeout(() => (copyCompact.textContent = 'Copy compact verdict'), 1600);
+    }
+  });
+
   let closed = false;
   const close = makeButton('Close', () => {
     closed = true;
@@ -457,8 +533,8 @@
     root.remove();
   });
 
-  controls.append(start, reset, copy, close);
-  root.append(title, hint, pre, controls);
+  controls.append(start, reset, copy, copyCompact, close);
+  root.append(title, hint, verdictBanner, pre, controls);
   document.body.append(root);
 
   const observer = new MutationObserver((mutations) => {
